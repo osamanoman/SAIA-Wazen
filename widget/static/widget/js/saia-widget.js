@@ -309,6 +309,8 @@ class SAIAWidget {
         this.elements.messages = this.elements.widget.querySelector('.saia-widget-messages');
         this.elements.input = this.elements.widget.querySelector('.saia-widget-input');
         this.elements.sendButton = this.elements.widget.querySelector('.saia-widget-send');
+        this.elements.attachmentButton = this.elements.widget.querySelector('.saia-widget-attachment');
+        this.elements.fileInput = this.elements.widget.querySelector('.saia-widget-file-input');
         
         // Add to container
         this.elements.container.appendChild(this.elements.toggleButton);
@@ -386,9 +388,14 @@ class SAIAWidget {
                     <span class="saia-typing-text">AI is typing...</span>
                 </div>
                 <div class="saia-widget-input-wrapper">
-                    <textarea 
-                        class="saia-widget-input" 
-                        placeholder="Type your message..." 
+                    <button class="saia-widget-attachment" aria-label="Attach file" title="Attach image">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66L9.64 16.2a2 2 0 0 1-2.83-2.83l8.49-8.49"></path>
+                        </svg>
+                    </button>
+                    <textarea
+                        class="saia-widget-input"
+                        placeholder="Type your message..."
                         rows="1"
                         aria-label="Type your message"
                     ></textarea>
@@ -399,6 +406,7 @@ class SAIAWidget {
                         </svg>
                     </button>
                 </div>
+                <input type="file" class="saia-widget-file-input" accept="image/*" style="display: none;" aria-label="Select image file">
             </div>
         `;
     }
@@ -454,12 +462,24 @@ class SAIAWidget {
         this.elements.sendButton.addEventListener('click', () => {
             this.sendMessage();
         });
-        
+
+        // Attachment button click
+        this.elements.attachmentButton.addEventListener('click', () => {
+            this.elements.fileInput.click();
+        });
+
+        // File input change
+        this.elements.fileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                this.handleFileUpload(e.target.files[0]);
+            }
+        });
+
         // Auto-resize textarea
         this.elements.input.addEventListener('input', () => {
             this.autoResizeTextarea();
         });
-        
+
         // Session timeout handling
         this.setupSessionTimeout();
     }
@@ -710,6 +730,103 @@ class SAIAWidget {
     }
 
     /**
+     * Handle file upload
+     */
+    async handleFileUpload(file) {
+        if (this.state.isLoading) return;
+
+        try {
+            // Validate file size (5MB max)
+            const maxSize = 5 * 1024 * 1024; // 5MB
+            if (file.size > maxSize) {
+                this.showError('File too large. Maximum size is 5MB.');
+                return;
+            }
+
+            // Validate file type (images only)
+            const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+            if (!allowedTypes.includes(file.type)) {
+                this.showError('Only image files (JPEG, PNG, GIF, WebP) are allowed.');
+                return;
+            }
+
+            this.log('Uploading file:', file.name);
+
+            // Show upload indicator
+            this.addMessage({
+                content: `📎 Uploading ${file.name}...`,
+                is_ai: false,
+                timestamp: new Date().toISOString(),
+                isUploading: true
+            });
+
+            // Create form data
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // Upload file
+            const response = await fetch(`${this.config.apiBaseUrl}/api/widget/session/${this.state.sessionId}/upload/`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+
+            // Remove upload indicator and add success message
+            this.removeUploadingMessage();
+            this.addMessage({
+                content: `✅ File uploaded successfully: ${file.name}`,
+                is_ai: false,
+                timestamp: data.upload_time,
+                isFileUpload: true,
+                fileInfo: data.file_info
+            });
+
+            // Update activity
+            this.updateActivity();
+
+            // Clear file input
+            this.elements.fileInput.value = '';
+
+            // Call callback
+            if (this.config.onFileUpload) {
+                this.config.onFileUpload(data, this);
+            }
+
+        } catch (error) {
+            this.removeUploadingMessage();
+            this.handleError('Failed to upload file', error);
+            // Clear file input
+            this.elements.fileInput.value = '';
+        }
+    }
+
+    /**
+     * Remove uploading message
+     */
+    removeUploadingMessage() {
+        const uploadingMessages = this.elements.messages.querySelectorAll('.saia-message[data-uploading="true"]');
+        uploadingMessages.forEach(msg => msg.remove());
+    }
+
+    /**
+     * Show error message
+     */
+    showError(message) {
+        this.addMessage({
+            content: `❌ ${message}`,
+            is_ai: true,
+            timestamp: new Date().toISOString(),
+            isError: true
+        });
+    }
+
+    /**
      * Extract message content from API response
      */
     extractMessageContent(content) {
@@ -732,6 +849,17 @@ class SAIAWidget {
     addMessage(message) {
         const messageElement = document.createElement('div');
         messageElement.className = `saia-message ${message.is_ai ? 'saia-message-bot' : 'saia-message-user'}`;
+
+        // Add special attributes for different message types
+        if (message.isUploading) {
+            messageElement.setAttribute('data-uploading', 'true');
+        }
+        if (message.isFileUpload) {
+            messageElement.setAttribute('data-file-upload', 'true');
+        }
+        if (message.isError) {
+            messageElement.setAttribute('data-error', 'true');
+        }
 
         const time = new Date(message.timestamp);
         const timeString = this.formatTime(time);

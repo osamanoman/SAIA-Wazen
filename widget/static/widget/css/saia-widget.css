@@ -415,6 +415,40 @@
     color: #9ca3af;
 }
 
+/* Attachment Button */
+.saia-widget-attachment {
+    background: #f3f4f6;
+    color: #6b7280;
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--saia-transition-fast);
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+.saia-widget-attachment:hover {
+    background: #e5e7eb;
+    color: #374151;
+    opacity: 1;
+    transform: scale(1.05);
+}
+
+.saia-widget-attachment svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* File Input (Hidden) */
+.saia-widget-file-input {
+    display: none;
+}
+
 .saia-widget-send {
     background: var(--saia-primary-color);
     border: none;
@@ -499,4 +533,27 @@
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
     }
+}
+
+/* Special Message Types */
+.saia-message[data-uploading="true"] {
+    opacity: 0.7;
+}
+
+.saia-message[data-uploading="true"] .saia-message-text {
+    font-style: italic;
+    color: #6b7280;
+}
+
+.saia-message[data-file-upload="true"] .saia-message-text {
+    background: #f0f9ff;
+    border-left: 3px solid #0ea5e9;
+    padding-left: 12px;
+}
+
+.saia-message[data-error="true"] .saia-message-text {
+    background: #fef2f2;
+    border-left: 3px solid #ef4444;
+    color: #dc2626;
+    padding-left: 12px;
 }

@@ -1,6 +1,7 @@
 import json
 import uuid
 import logging
+import os
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.csrf import csrf_exempt
@@ -8,6 +9,9 @@ from django.views.decorators.http import require_http_methods
 from django.utils import timezone
 from django.db import transaction
 from django.contrib.auth import get_user_model
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+from django.conf import settings
 from django_ai_assistant.models import Thread, Message
 from django_ai_assistant.helpers.use_cases import create_message
 
@@ -287,6 +291,121 @@ def message_send_api(request, session_id):
     except Exception as e:
         logger.error(f"Error sending message to session {session_id}: {e}")
         return JsonResponse({"error": "Failed to send message"}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@rate_limit('file_upload')
+def file_upload_api(request, session_id):
+    """
+    Upload a file (image) to a chat session.
+
+    Handles file uploads for the widget, validates files, stores them securely,
+    and notifies the AI assistant about the upload.
+    """
+    try:
+        # Validate session ID format
+        try:
+            uuid.UUID(session_id)
+        except ValueError:
+            return JsonResponse({
+                "error": "Invalid session ID format",
+                "message": "Session ID must be a valid UUID"
+            }, status=400)
+
+        # Get website session
+        try:
+            website_session = WebsiteSession.objects.get(session_id=session_id)
+        except WebsiteSession.DoesNotExist:
+            return JsonResponse({"error": "Session not found"}, status=404)
+
+        # Check if session is active
+        if website_session.status != 'active':
+            return JsonResponse({"error": "Session is not active"}, status=400)
+
+        # Check if file was uploaded
+        if 'file' not in request.FILES:
+            return JsonResponse({"error": "No file uploaded"}, status=400)
+
+        uploaded_file = request.FILES['file']
+
+        # Validate file size (max 5MB)
+        max_size = 5 * 1024 * 1024  # 5MB
+        if uploaded_file.size > max_size:
+            return JsonResponse({
+                "error": "File too large",
+                "message": "File size must be less than 5MB"
+            }, status=400)
+
+        # Validate file type (images only)
+        allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+        if uploaded_file.content_type not in allowed_types:
+            return JsonResponse({
+                "error": "Invalid file type",
+                "message": "Only image files (JPEG, PNG, GIF, WebP) are allowed"
+            }, status=400)
+
+        # Generate unique filename
+        file_extension = os.path.splitext(uploaded_file.name)[1]
+        unique_filename = f"widget_uploads/{session_id}_{uuid.uuid4().hex}{file_extension}"
+
+        # Save file
+        file_path = default_storage.save(unique_filename, ContentFile(uploaded_file.read()))
+        file_url = default_storage.url(file_path)
+
+        # Store file info in session visitor_metadata
+        if not website_session.visitor_metadata:
+            website_session.visitor_metadata = {}
+
+        if 'uploaded_files' not in website_session.visitor_metadata:
+            website_session.visitor_metadata['uploaded_files'] = []
+
+        file_info = {
+            'filename': uploaded_file.name,
+            'file_path': file_path,
+            'file_url': file_url,
+            'content_type': uploaded_file.content_type,
+            'size': uploaded_file.size,
+            'uploaded_at': timezone.now().isoformat()
+        }
+
+        website_session.visitor_metadata['uploaded_files'].append(file_info)
+        website_session.save()
+
+        # Send notification message to AI assistant about the upload
+        anonymous_user = website_session.user
+
+        # Create a system message about the file upload
+        upload_message = f"📎 تم رفع ملف: {uploaded_file.name} ({uploaded_file.content_type}, {uploaded_file.size} bytes)"
+
+        ai_response = create_message(
+            assistant_id=website_session.thread.assistant_id,
+            thread=website_session.thread,
+            user=anonymous_user,
+            content=upload_message,
+            request=request
+        )
+
+        logger.info(f"File uploaded to session {session_id}: {uploaded_file.name}")
+
+        response_data = {
+            "status": "success",
+            "message": "File uploaded successfully",
+            "file_info": {
+                "filename": uploaded_file.name,
+                "size": uploaded_file.size,
+                "type": uploaded_file.content_type,
+                "url": file_url
+            },
+            "upload_time": timezone.now().isoformat()
+        }
+
+        response = JsonResponse(response_data)
+        return add_cors_headers(response, request.META.get('HTTP_ORIGIN'))
+
+    except Exception as e:
+        logger.error(f"Error uploading file to session {session_id}: {e}")
+        return JsonResponse({"error": "Failed to upload file"}, status=500)
 
 
 @csrf_exempt

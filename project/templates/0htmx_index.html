@@ -1,0 +1,58 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html dir="rtl">
+  <head>
+    <title>Django AI Assistant - HTMX Demo</title>
+    <link rel="stylesheet" href="{% static 'css/htmx_index.css' %}" />
+    <!-- Bootstrap -->
+    <link rel="stylesheet" href="{% static 'css/bootstrap.min.css' %}"/>
+<!--    <link-->
+<!--      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css"-->
+<!--      rel="stylesheet"-->
+<!--    />-->
+    <link href="{% static 'css/fontawesome.css' %}" rel="stylesheet"/>
+    <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+    <!-- HTMX -->
+    <script src="{% static 'js/htmx.min.js'%}"></script>
+    <script src="{% static 'js/loading-states.js' %}"></script>
+    <script src="{% static 'js/jquery.js' %}"></script>
+  </head>
+
+  <body
+    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+    hx-ext="loading-states"
+  >
+    {% block body %}{% endblock %}
+  </body>
+  <script>
+    // Send message on Ctrl+Enter
+    document.addEventListener("keydown", function (event) {
+      if (event.ctrlKey && event.key === "Enter") {
+        document.getElementById("send-message-button").click();
+      }
+    });
+    $('#maximize').click(function (){
+      $('#minimize').removeClass('d-none');
+      $('#maximize').addClass('d-none');
+      $('#chat-wrapper').css({'max-width':'100%'})
+      $('#threads-container').css({'height':'70vh'})
+      $('#messages-container').css({'height':'70vh'})
+    });
+
+    $('#minimize').click(function (){
+      $('#minimize').addClass('d-none');
+      $('#maximize').removeClass('d-none');
+      $('#chat-wrapper').css({'max-width':''})
+      $('#threads-container').css({'height':'50vh'})
+      $('#messages-container').css({'height':'50vh'})
+    });
+    htmx.onLoad(function (){
+      $('#chat-wrapper table').each(function(){
+        $('table').addClass('table');
+      });
+      // alert('hello');
+      $('#messages-list').scrollTop($('#messages-list').offset().top + $("#messages-list")[0].scrollHeight);
+    });
+  </script>
+</html>

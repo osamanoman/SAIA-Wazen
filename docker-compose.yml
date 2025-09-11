@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: saia_postgres
+    environment:
+      POSTGRES_DB: saia_db
+      POSTGRES_USER: saia_user
+      POSTGRES_PASSWORD: saia_password_2024
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - saia_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U saia_user -d saia_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: saia_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - saia_network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    container_name: saia_phoenix
+    ports:
+      - "6006:6006"
+      - "4317:4317"
+    environment:
+      - PHOENIX_SQL_DATABASE_URL=sqlite:///tmp/phoenix.db
+    networks:
+      - saia_network
+    restart: unless-stopped
+    volumes:
+      - phoenix_data:/tmp
+
+volumes:
+  postgres_data:
+  redis_data:
+  phoenix_data:
+
+networks:
+  saia_network:
+    driver: bridge

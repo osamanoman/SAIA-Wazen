@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAIA Widget Integration</title>
+    <meta name="description" content="SAIA AI-powered chatbot widget for customer support">
+    
+    <!-- SAIA Widget Styles -->
+    <link rel="stylesheet" href="{{ widget_css_url }}">
+    
+    <!-- Preload widget script for better performance -->
+    <link rel="preload" href="{{ widget_js_url }}" as="script">
+</head>
+<body>
+    <!-- SAIA Widget will be automatically injected here -->
+    
+    <!-- SAIA Widget Configuration -->
+    <script>
+        // Widget configuration - customize these values
+        window.saiaWidgetConfig = {
+            // Required: Your company identifier
+            companySlug: '{{ company_slug }}',
+            
+            // API Configuration
+            apiBaseUrl: '{{ api_base_url }}',
+            
+            // Widget Positioning
+            position: '{{ position|default:"bottom-right" }}', // bottom-right, bottom-left, top-right, top-left
+            
+            // Widget Behavior
+            autoOpen: {{ auto_open|yesno:"true,false" }},
+            showWelcomeMessage: {{ show_welcome_message|yesno:"true,false" }},
+            enableSound: {{ enable_sound|yesno:"true,false" }},
+            
+            // Styling
+            theme: '{{ theme|default:"default" }}',
+            
+            // Advanced Options
+            debug: {{ debug|yesno:"true,false" }},
+            maxMessages: {{ max_messages|default:100 }},
+            sessionTimeout: {{ session_timeout|default:1800000 }}, // 30 minutes in milliseconds
+            
+            // Event Callbacks
+            onReady: function(widget) {
+                console.log('SAIA Widget is ready!', widget);
+                {% if on_ready_callback %}{{ on_ready_callback|safe }}{% endif %}
+            },
+            
+            onOpen: function(widget) {
+                console.log('SAIA Widget opened');
+                {% if on_open_callback %}{{ on_open_callback|safe }}{% endif %}
+            },
+            
+            onClose: function(widget) {
+                console.log('SAIA Widget closed');
+                {% if on_close_callback %}{{ on_close_callback|safe }}{% endif %}
+            },
+            
+            onMessage: function(message, widget) {
+                console.log('New message received:', message);
+                {% if on_message_callback %}{{ on_message_callback|safe }}{% endif %}
+            },
+            
+            onError: function(error, details) {
+                console.error('SAIA Widget error:', error, details);
+                {% if on_error_callback %}{{ on_error_callback|safe }}{% endif %}
+            }
+        };
+    </script>
+    
+    <!-- SAIA Widget Script -->
+    <script src="{{ widget_js_url }}" async></script>
+    
+    <!-- Optional: Custom styling -->
+    {% if custom_css %}
+    <style>
+        {{ custom_css|safe }}
+    </style>
+    {% endif %}
+    
+    <!-- Optional: Analytics tracking -->
+    {% if analytics_enabled %}
+    <script>
+        // Track widget interactions
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof gtag !== 'undefined') {
+                // Google Analytics 4
+                gtag('event', 'saia_widget_loaded', {
+                    'company': '{{ company_slug }}',
+                    'widget_version': '1.0.0'
+                });
+            } else if (typeof ga !== 'undefined') {
+                // Universal Analytics
+                ga('send', 'event', 'SAIA Widget', 'loaded', '{{ company_slug }}');
+            }
+        });
+    </script>
+    {% endif %}
+</body>
+</html>

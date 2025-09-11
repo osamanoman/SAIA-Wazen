@@ -1,0 +1,88 @@
+{% extends "htmx_index.html" %}
+{% load static %}
+{% block body %}
+<div class="container my-2">
+    <a href="/admin/" class="btn btn-primary" target="_blank">Go to Admin</a>
+</div>
+<input type="checkbox" id="check"> <label class="chat-btn shadow" for="check">
+<!--    <i class="fa fa-commenting-o comment"></i> -->
+<!--    <i class="bi bi-chat-dots comment"></i>-->
+    <img src="{% static 'assets/logo2.png' %}" class="comment">
+    <i class="fa fa-close close"></i> </label>
+<div class="container-xxl chat-wrapper p-2 border" id="chat-wrapper">
+    <div class="row">
+        <div class="col-4">
+            <div class="card">
+                <div class="card-header">
+                    الجلسات السابقة
+                </div>
+                <div class="card-body">
+                    <div id="threads-wrapper" class="bg-body-tertiary" hx-swap-oob="true">
+                        {% block threads_list %}
+                        <div id="threads-container" class="d-flex flex-column">
+                            <div id="threads-list" class="list-group flex-grow-1 overflow-auto">
+                                {% for thread in threads %}
+                                <a
+                                        class="thread-item list-group-item list-group-item-action {% if thread.id == thread_id %}active{% endif %}"
+                                        href="{% url 'chat_thread' thread.id %}"
+                                        hx-get="{% url 'chat_thread' thread.id %}"
+                                        hx-target="#messages-wrapper"
+                                        hx-select="#messages-wrapper"
+                                        hx-push-url="true"
+                                >
+                                    {{ thread.name }}
+                                </a>
+                                {% endfor %}
+                            </div>
+
+                            <button
+                                    id="create-thread-button"
+                                    class="btn text-white mt-3"
+                                    style="background-color: #f47822"
+                                    hx-post='{% url "chat_home" %}'
+                                    hx-target="#threads-container"
+                                    hx-select="#messages-list"
+                                    hx-select-oob="#messages-list"
+                                    hx-push-url="true"
+                                    data-loading-disable
+                            >
+                                إنشاء جلسة جديدة
+                            </button>
+                        </div>
+                        {% endblock %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-8">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex">
+                        <div class="align-items-start">
+                            سجل الحوار
+                        </div>
+                        <div class="me-auto">
+                            <button class="btn btn-secondary" id="maximize"><i class="fa fa-maximize"></i></button>
+                            <button class="btn btn-secondary d-none" id="minimize"><i class="fa fa-minimize"></i></button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="messages-wrapper" hx-swap-oob="true">
+                        {% block message_list %}
+                        <div class="text-center text-muted my-3">
+                            Select or create a thread to start chatting.
+                        </div>
+                        {% endblock %}
+                    </div>
+                </div>
+            </div>
+            <!--    <div class="text-center p-2"><span>Please fill out the form to start chat!</span></div>-->
+            <!--    <div class="chat-form"><input type="text" class="form-control" placeholder="Name"> <input type="text"-->
+            <!--                                                                                              class="form-control"-->
+            <!--                                                                                              placeholder="Email">-->
+            <!--        <textarea class="form-control" placeholder="Your Text Message"></textarea>-->
+        </div>
+    </div>
+</div>
+{% endblock %}

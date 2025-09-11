@@ -1,0 +1,262 @@
+{% extends "admin/chat_home.html" %}
+{% load static %}
+{% load markdown %}
+
+{% block message_list %}
+<div id="messages-container" class="d-flex flex-column">
+    <!-- Django alert messages from django.contrib.messages: -->
+    {% if messages %}
+    <div class="alert-messages">
+        {% for message in messages %}
+        <div class="alert alert-warning">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if permission_error %}
+    <div class="alert alert-warning text-center my-3">
+        {{ permission_error }}
+    </div>
+    {% elif thread_messages %}
+    <div id="messages-list" class="overflow-auto">
+        {% for message in thread_messages %}
+        <div class="d-flex flex-column p-2 {% if message.type == 'ai' %}align-items-end bg-warning bg-opacity-10{% endif %}">
+          <span>
+            <strong {% if message.type == "ai" %} style="color: #f47822" {% endif %} >
+              {% if message.type == "ai" %}NexusAI{% else %}{{user.username}}{% endif %}
+            </strong>
+          </span>
+            <span>{{ message.content|markdown }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center text-muted my-3">
+        No messages in this thread yet.
+    </div>
+    {% endif %}
+
+    <div class="text-center my-2" data-loading>
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+
+    <!-- Image Upload Interface (shown when needed) -->
+    <div id="image-upload-interface" class="mb-3" style="display: none;">
+        <div class="card border-primary">
+            <div class="card-header bg-primary text-white">
+                <h6 class="mb-0">📸 رفع الصورة الشخصية</h6>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">يرجى رفع صورة شخصية واضحة لإكمال طلب الخدمة</p>
+                <div class="mb-3">
+                    <input type="file" class="form-control" id="image-upload" accept="image/*" capture="user">
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-success" id="confirm-image-upload" onclick="confirmImageUpload()">
+                        ✅ تأكيد رفع الصورة
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="cancel-image-upload" onclick="cancelImageUpload()">
+                        ❌ إلغاء
+                    </button>
+                </div>
+                <div id="image-preview" class="mt-3" style="display: none;">
+                    <img id="preview-img" class="img-thumbnail" style="max-width: 200px; max-height: 200px;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex align-items-center mt-auto">
+        {% if not permission_error %}
+        <form hx-post="{% url 'chat_thread' thread_id %}" hx-target="#messages-container" hx-swap="outerHTML" hx-select="#messages-container" class="d-flex w-100" id="chat-form">
+            {% csrf_token %}
+            <div class="d-flex w-100 align-items-end">
+                <textarea
+                        id="input-area"
+                        class="form-control w-100 mw-100"
+                        placeholder="أدخل رسالتك... (Enter للإرسال، Shift+Enter لسطر جديد)"
+                        name="content"
+                        data-loading-disable
+                        rows="1"
+                        style="resize: none; min-height: 38px;"
+                        onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); if(this.value.trim()) this.form.requestSubmit();}"
+                ></textarea>
+                <button
+                        type="button"
+                        id="image-button"
+                        class="btn btn-outline-primary ms-2 d-inline-flex align-items-center justify-content-center"
+                        style="min-width: 38px; height: 38px; border-radius: 6px;"
+                        title="رفع صورة"
+                        onclick="toggleImageUpload()"
+                >
+                    📸
+                </button>
+                <button
+                        type="submit"
+                        id="send-message-button"
+                        class="btn btn-success ms-2 d-inline-flex align-items-center justify-content-center"
+                        data-loading-disable
+                        style="min-width: 60px; height: 38px; border-radius: 6px;"
+                        title="إرسال (Enter)"
+                >
+                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M15.854.146a.5.5 0 0 1 .11.54L13.026 8.5l2.938 7.814a.5.5 0 0 1-.11.54.5.5 0 0 1-.54.11L1.5 12.5l13.814-2.938a.5.5 0 0 1 .54-.11z"/>
+                        <path d="M1.5 12.5L15.854.646a.5.5 0 0 0-.54-.11L1.5 3.474v9.026z"/>
+                    </svg>
+                </button>
+            </div>
+        </form>
+        {% else %}
+            <textarea class="form-control" placeholder="لا يوجد لديك صلاحية إضافة رسائل" disabled></textarea>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+// Image upload functionality
+function toggleImageUpload() {
+    const uploadInterface = document.getElementById('image-upload-interface');
+    if (uploadInterface.style.display === 'none') {
+        uploadInterface.style.display = 'block';
+    } else {
+        uploadInterface.style.display = 'none';
+    }
+}
+
+// Global function for image upload confirmation
+function confirmImageUpload() {
+    console.log('confirmImageUpload called');
+    const imageUpload = document.getElementById('image-upload');
+    const file = imageUpload ? imageUpload.files[0] : null;
+
+    if (file) {
+        console.log('File found:', file.name);
+
+        // Show loading state
+        const confirmButton = document.getElementById('confirm-image-upload');
+        if (confirmButton) {
+            confirmButton.disabled = true;
+            confirmButton.innerHTML = '⏳ جاري الرفع...';
+        }
+
+        // Send message to AI
+        const inputArea = document.getElementById('input-area');
+        if (inputArea) {
+            inputArea.value = 'تم رفع الصورة الشخصية بنجاح - يرجى التحقق من الرفع';
+
+            // Submit the form
+            const form = inputArea.closest('form');
+            if (form) {
+                console.log('Submitting form...');
+
+                // Try multiple submission methods
+                if (typeof htmx !== 'undefined') {
+                    htmx.trigger(form, 'submit');
+                } else {
+                    const submitButton = form.querySelector('button[type="submit"]');
+                    if (submitButton) {
+                        submitButton.click();
+                    } else {
+                        form.submit();
+                    }
+                }
+            }
+        }
+
+        // Reset after short delay
+        setTimeout(() => {
+            if (confirmButton) {
+                confirmButton.disabled = false;
+                confirmButton.innerHTML = '✅ تأكيد رفع الصورة';
+            }
+            toggleImageUpload();
+
+            // Clear file input
+            if (imageUpload) {
+                imageUpload.value = '';
+            }
+            const previewDiv = document.getElementById('image-preview');
+            if (previewDiv) {
+                previewDiv.style.display = 'none';
+            }
+        }, 1000);
+    } else {
+        alert('يرجى اختيار صورة أولاً');
+    }
+}
+
+// Global function for canceling image upload
+function cancelImageUpload() {
+    console.log('cancelImageUpload called');
+    toggleImageUpload();
+
+    const imageUpload = document.getElementById('image-upload');
+    if (imageUpload) {
+        imageUpload.value = '';
+    }
+
+    const previewDiv = document.getElementById('image-preview');
+    if (previewDiv) {
+        previewDiv.style.display = 'none';
+    }
+}
+
+// Inline Enter key handler for immediate functionality
+document.addEventListener('DOMContentLoaded', function() {
+    function addEnterKeyHandler() {
+        const inputArea = document.getElementById('input-area');
+        if (inputArea) {
+            inputArea.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (this.value.trim()) {
+                        const form = this.closest('form');
+                        if (form) {
+                            // Submit the form
+                            form.requestSubmit();
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    // Image upload handlers
+    function setupImageUpload() {
+        const imageUpload = document.getElementById('image-upload');
+        const confirmButton = document.getElementById('confirm-image-upload');
+        const cancelButton = document.getElementById('cancel-image-upload');
+        const previewDiv = document.getElementById('image-preview');
+        const previewImg = document.getElementById('preview-img');
+
+        if (imageUpload) {
+            imageUpload.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        previewImg.src = e.target.result;
+                        previewDiv.style.display = 'block';
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+        }
+
+        // Note: Using onclick handlers instead of addEventListener to avoid conflicts
+        // The onclick handlers are defined as global functions above
+    }
+
+    // Initial setup
+    addEnterKeyHandler();
+    setupImageUpload();
+
+    // Re-setup after HTMX swaps
+    document.addEventListener('htmx:afterSwap', function() {
+        addEnterKeyHandler();
+        setupImageUpload();
+    });
+});
+</script>
+
+{% endblock %}

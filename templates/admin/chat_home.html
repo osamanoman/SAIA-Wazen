@@ -1,0 +1,130 @@
+{% load static %}
+<input type="checkbox" name="check" id="check" hx-get="{% url 'chat_home' %}" hx-select="delete"> <label
+        class="chat-btn shadow" for="check">
+    <img src="{% static 'assets/logo2.png' %}" class="comment">
+    <i class="fa fa-close close"></i> </label>
+<div class="container-xxl chat-wrapper p-2 border" id="chat-wrapper" hx-swap-oob="true" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+    <div class="row">
+        <div class="col-3">
+            <div class="card">
+                <div class="card-header">
+                    الجلسات السابقة
+                </div>
+                <div class="card-body">
+                    <div id="threads-wrapper" class="bg-body-tertiary" hx-swap-oob="true">
+                        {% block threads_list %}
+                            <div id="threads-container" class="d-flex flex-column">
+                                {% if perms.django_ai_assistant.view_thread %}
+                                    <ul id="threads-list" class="list-group pe-0 flex-grow-1 overflow-auto">
+                                        {% for thread in threads %}
+                                            <li class="list-group-item d-flex justify-content-between align-items-center"
+                                                id="thread-{{ thread.id }}">
+                                                <a
+                                                        class="thread-item list-group-item list-group-item-action {% if thread.id == thread_id %}active{% endif %}"
+                                                        href="{% url 'chat_thread' thread.id %}"
+                                                        hx-get="{% url 'chat_thread' thread.id %}"
+                                                        hx-target="#messages-wrapper"
+                                                        hx-select="#messages-wrapper"
+                                                        hx-push-url="false"
+                                                        id="t{{ thread.id }}"
+                                                >
+                                                    {{ thread.name }}
+                                                </a>
+                                                {% if perms.django_ai_assistant.change_thread %}
+                                                    <button class="btn btn-outline-warning btn-sm edit-thread"
+                                                            data-thread-id="{{ thread.id }}" title="Edit"><i
+                                                            class="fa fa-pen"></i></button>
+                                                {% endif %}
+                                                {% if perms.django_ai_assistant.delete_thread %}
+                                                    <button class="btn btn-outline-danger btn-sm delete-thread"
+                                                            title="Delete"
+                                                            hx-delete="{% url 'chat_thread' thread.id %}"
+                                                            hx-confirm="هل تريد فعلاً حذف هذه الجلسة؟"
+                                                            hx-target="#threads-list"
+                                                            hx-swap="innerHTML"
+                                                            hx-select="delete"
+                                                            hx-push-url="false">
+                                                        <i class="fa fa-trash"></i></button>
+                                                {% endif %}
+                                                {% if perms.django_ai_assistant.change_thread %}
+                                                    <li class="list-group-item d-flex justify-content-between align-items-center d-none"
+                                                        id="thread-new-{{ thread.id }}">
+                                                        <input type="text" name="content"
+                                                               id="thread-name-{{ thread.id }}"
+                                                               class="form-control" value="{{ thread.name }}"
+                                                               data-loading-disable>
+                                                        <button
+                                                                class="btn btn-success btn-sm update-thread"
+                                                                title="Save"
+                                                                hx-patch="{% url 'chat_thread' thread.id %}"
+                                                                hx-include="#thread-name-{{ thread.id }}"
+                                                                hx-target="#t{{ thread.id }}"
+                                                                hx-swap="textContent"
+                                                                hx-push-url="false"
+                                                                hx-on::after-request="updatedThread({{ thread.id }})"
+                                                                data-loading-disable
+                                                        ><i class="fa fa-check"></i></button>
+                                                        <button class="btn btn-danger btn-sm cancel-edit"
+                                                                data-thread-id="{{ thread.id }}" title="Cancel"><i
+                                                                class="fa fa-cancel"></i></button>
+                                                    </li>
+                                                {% endif %}
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                {% else %}
+                                    <ul>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            عذراً لا يوجد لديك صلاحية لإستعراض الجلسات
+                                        </li>
+                                    </ul>
+                                {% endif %}
+                                {% if perms.django_ai_assistant.add_thread %}
+                                    <form hx-post='{% url "chat_home" %}' hx-target="#threads-container" hx-select="#messages-list" hx-select-oob="#messages-list" hx-push-url="false">
+                                        {% csrf_token %}
+                                        <button
+                                                id="create-thread-button"
+                                                class="btn text-white mt-3 w-100"
+                                                style="background-color: #f47822"
+                                                type="submit"
+                                                data-loading-disable
+                                        >
+                                            إنشاء جلسة جديدة
+                                        </button>
+                                    </form>
+                                {% else %}
+                                    <button class="btn disabled">لا يوجد لديك صلاحية إضافة جلسات</button>
+                                {% endif %}
+                            </div>
+                        {% endblock %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-9">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex">
+                        <div class="align-items-start">
+                            سجل الحوار
+                        </div>
+                        <div class="me-auto">
+                            <button class="btn btn-secondary btn-sm" id="maximize"><i class="fa fa-maximize"></i></button>
+                            <button class="btn btn-secondary btn-sm d-none" id="minimize"><i class="fa fa-minimize"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="messages-wrapper" hx-swap-oob="true">
+                        {% block message_list %}
+                            <div class="text-center text-muted my-3">
+                                قم بإختيار او إضافة جلسة جديدة.
+                            </div>
+                        {% endblock %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

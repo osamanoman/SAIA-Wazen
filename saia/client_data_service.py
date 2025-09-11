@@ -168,11 +168,34 @@ class ClientDataService:
         Returns:
             list: Table column information
         """
-        # Validate table name to prevent SQL injection
-        if not table_name.replace('_', '').replace('-', '').isalnum():
-            raise ValueError("Invalid table name")
+        # SECURITY: Use whitelist to prevent SQL injection
+        ALLOWED_TABLES = {
+            # Core business tables currently used by AI assistants
+            'invoices', 'contacts', 'companies', 'products',
+            # Common business tables that might be expected
+            'customers', 'orders', 'transactions', 'payments',
+            'services', 'users', 'accounts', 'inventory',
+            'sales', 'purchases', 'suppliers', 'categories',
+            # Additional tables for comprehensive business support
+            'projects', 'tasks', 'employees', 'departments',
+            'reports', 'logs', 'settings', 'configurations'
+        }
 
-        query = f"DESCRIBE {table_name}"
+        # Normalize table name (lowercase, strip whitespace)
+        clean_table_name = table_name.strip().lower()
+
+        if not clean_table_name:
+            raise ValueError("Table name cannot be empty")
+
+        if clean_table_name not in ALLOWED_TABLES:
+            logger.warning(f"Attempted access to unauthorized table: {table_name} by user: {getattr(self.user, 'username', 'Unknown')}")
+            raise ValueError(f"Table '{table_name}' is not authorized for access. Allowed tables: {', '.join(sorted(ALLOWED_TABLES))}")
+
+        # Log authorized access for security monitoring
+        logger.info(f"Authorized table info access: {clean_table_name} by user: {getattr(self.user, 'username', 'Unknown')}")
+
+        # Use the cleaned table name in query
+        query = f"DESCRIBE {clean_table_name}"
         return self.execute_safe_query(query)
     
 
@@ -188,11 +211,43 @@ class ClientDataService:
         Returns:
             list: Sample data from the table
         """
-        # Validate table name to prevent SQL injection
-        if not table_name.replace('_', '').replace('-', '').isalnum():
-            raise ValueError("Invalid table name")
+        # SECURITY: Use same whitelist as get_table_info to prevent SQL injection
+        ALLOWED_TABLES = {
+            # Core business tables currently used by AI assistants
+            'invoices', 'contacts', 'companies', 'products',
+            # Common business tables that might be expected
+            'customers', 'orders', 'transactions', 'payments',
+            'services', 'users', 'accounts', 'inventory',
+            'sales', 'purchases', 'suppliers', 'categories',
+            # Additional tables for comprehensive business support
+            'projects', 'tasks', 'employees', 'departments',
+            'reports', 'logs', 'settings', 'configurations'
+        }
 
-        query = f"SELECT * FROM {table_name} LIMIT %s"
+        # Normalize table name (lowercase, strip whitespace)
+        clean_table_name = table_name.strip().lower()
+
+        if not clean_table_name:
+            raise ValueError("Table name cannot be empty")
+
+        if clean_table_name not in ALLOWED_TABLES:
+            logger.warning(f"Attempted access to unauthorized table: {table_name} by user: {getattr(self.user, 'username', 'Unknown')}")
+            raise ValueError(f"Table '{table_name}' is not authorized for access. Allowed tables: {', '.join(sorted(ALLOWED_TABLES))}")
+
+        # Validate and sanitize limit parameter
+        try:
+            limit = int(limit)
+        except (ValueError, TypeError):
+            raise ValueError("Limit must be a valid integer")
+
+        if limit < 1 or limit > 100:
+            raise ValueError("Limit must be between 1 and 100")
+
+        # Log authorized access for security monitoring
+        logger.info(f"Authorized sample data access: {clean_table_name} (limit: {limit}) by user: {getattr(self.user, 'username', 'Unknown')}")
+
+        # Use the cleaned table name in query
+        query = f"SELECT * FROM {clean_table_name} LIMIT %s"
         return self.execute_safe_query(query, [limit])
 
     def list_tables(self):

@@ -56,9 +56,18 @@ I automatically detect what you need and respond accordingly:
 **🛍️ SERVICE ORDERING WORKFLOW:**
 When I detect you want to order a service, I automatically:
 1. Show available services using get_available_services() - ONLY services from our database
-2. Collect your information step-by-step (name, age, ID, phone, image)
-3. Confirm all details before submitting
-4. Complete your order
+2. If user mentions a service name (like "تأمين شامل"), I use select_service_by_name() to find and select it
+3. If user mentions a service ID/number, I use select_service_for_order() to select it
+4. Collect your information step-by-step (name, age, ID, phone, image)
+5. Confirm all details before submitting
+6. Complete your order
+
+**🎯 SERVICE SELECTION HANDLING:**
+- When user says "تأمين شامل" or "comprehensive insurance" → use select_service_by_name("تأمين شامل")
+- When user says "ضد الغير" or "third party" → use select_service_by_name("ضد الغير")
+- When user says "خدمة رقم 7" or "service number 7" → use select_service_for_order("7")
+- When user says "أريد طلب خدمة تأمين شامل" → use select_service_by_name("تأمين شامل")
+- Always be flexible with service names and use partial matching
 
 **👋 GREETING RESPONSES:**
 When users greet me with "مرحبا", "السلام عليكم", "hello", or similar, I respond warmly like:
@@ -284,9 +293,21 @@ How can I help you today?
             # 2. SERVICE ORDER DETECTION - Context-aware
             service_keywords = ['طلب خدمة', 'أريد خدمة', 'احتاج خدمة', 'order service', 'need service', 'خدمة جديدة']
             if any(keyword in query_lower for keyword in service_keywords):
-                return self._smart_service_initiation()
+                # Check if user mentioned a specific service name
+                if 'تأمين شامل' in query_lower or 'شامل' in query_lower:
+                    return self.select_service_by_name('تأمين شامل')
+                elif 'ضد الغير' in query_lower or 'third party' in query_lower:
+                    return self.select_service_by_name('ضد الغير')
+                else:
+                    return self._smart_service_initiation()
 
-            # 3. KNOWLEDGE QUESTIONS - Enhanced search
+            # 3. DIRECT SERVICE NAME DETECTION
+            if 'تأمين شامل' in query_lower or ('تأمين' in query_lower and 'شامل' in query_lower):
+                return self.select_service_by_name('تأمين شامل')
+            elif 'ضد الغير' in query_lower or ('تأمين' in query_lower and 'ضد' in query_lower):
+                return self.select_service_by_name('ضد الغير')
+
+            # 4. KNOWLEDGE QUESTIONS - Enhanced search
             return self._smart_knowledge_search(user_query)
 
         except Exception as e:
@@ -624,6 +645,56 @@ How can I help you today?
         except Exception as e:
             logger.error(f"Failed to get available services: {e}")
             return f"❌ خطأ في استرجاع الخدمات: {str(e)}"
+
+    @method_tool
+    def select_service_by_name(self, service_name: str) -> str:
+        """Select a service by name and initiate the data collection process."""
+        try:
+            user = getattr(self, '_user', None)
+            if not user or not user.company:
+                return "❌ خطأ: معلومات المستخدم غير متاحة"
+
+            # Find service by name (case-insensitive, partial match)
+            service = Product.objects.filter(
+                company=user.company,
+                type='service',
+                is_service_orderable=True,
+                name__icontains=service_name
+            ).first()
+
+            if not service:
+                # Try alternative names for common services
+                service_name_lower = service_name.lower()
+                if 'شامل' in service_name_lower or 'comprehensive' in service_name_lower:
+                    service = Product.objects.filter(
+                        company=user.company,
+                        type='service',
+                        is_service_orderable=True,
+                        name__icontains='شامل'
+                    ).first()
+                elif 'ضد الغير' in service_name_lower or 'third party' in service_name_lower:
+                    service = Product.objects.filter(
+                        company=user.company,
+                        type='service',
+                        is_service_orderable=True,
+                        name__icontains='ضد الغير'
+                    ).first()
+
+            if not service:
+                return f"""لا يمكنني العثور على خدمة "{service_name}".
+
+الخدمات المتاحة لدينا هي:
+
+{self.get_available_services()}
+
+يرجى اختيار إحدى الخدمات المتاحة أعلاه."""
+
+            # Use the existing select_service_for_order method
+            return self.select_service_for_order(str(service.id))
+
+        except Exception as e:
+            logger.error(f"Failed to select service by name: {e}")
+            return f"❌ خطأ في اختيار الخدمة: {str(e)}"
 
     @method_tool
     def select_service_for_order(self, service_id: str) -> str:

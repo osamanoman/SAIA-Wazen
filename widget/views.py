@@ -373,7 +373,7 @@ def file_upload_api(request, session_id):
         website_session.save()
 
         # Send notification message to AI assistant about the upload
-        anonymous_user = website_session.user
+        anonymous_user = website_session.thread.created_by
 
         # Create a system message about the file upload
         upload_message = f"📎 تم رفع ملف: {uploaded_file.name} ({uploaded_file.content_type}, {uploaded_file.size} bytes)"

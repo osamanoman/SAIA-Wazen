@@ -409,6 +409,83 @@ def file_upload_api(request, session_id):
 
 
 @csrf_exempt
+@require_http_methods(["POST"])
+@rate_limit('session_management')
+def clear_session_api(request, session_id):
+    """
+    Clear/reset a chat session.
+
+    This will:
+    1. Mark the current session as closed
+    2. Delete all messages in the thread
+    3. Clear uploaded files metadata
+    4. Create a fresh session for continued chatting
+    """
+    try:
+        # Validate session ID format
+        try:
+            uuid.UUID(session_id)
+        except ValueError:
+            return JsonResponse({
+                "error": "Invalid session ID format",
+                "message": "Session ID must be a valid UUID"
+            }, status=400)
+
+        # Get website session
+        try:
+            website_session = WebsiteSession.objects.get(session_id=session_id)
+        except WebsiteSession.DoesNotExist:
+            return JsonResponse({"error": "Session not found"}, status=404)
+
+        # Get the company for creating a new session
+        company = website_session.company
+        visitor_ip = website_session.visitor_ip
+        user_agent = website_session.user_agent
+        referrer_url = website_session.referrer_url
+
+        # Close the current session
+        website_session.close_session()
+
+        # Delete all messages from the thread
+        website_session.thread.messages.all().delete()
+
+        # Clear uploaded files from storage if any exist
+        if website_session.visitor_metadata and 'uploaded_files' in website_session.visitor_metadata:
+            uploaded_files = website_session.visitor_metadata['uploaded_files']
+            for file_info in uploaded_files:
+                try:
+                    # Delete the physical file
+                    if default_storage.exists(file_info['file_path']):
+                        default_storage.delete(file_info['file_path'])
+                except Exception as e:
+                    logger.warning(f"Failed to delete uploaded file {file_info.get('file_path')}: {e}")
+
+        # Create a new fresh session
+        new_session_data = create_widget_session(
+            company_identifier=company.name.lower(),
+            visitor_ip=visitor_ip,
+            user_agent=user_agent,
+            referrer_url=referrer_url
+        )
+
+        logger.info(f"Session {session_id} cleared and new session {new_session_data['session_id']} created")
+
+        return JsonResponse({
+            "status": "success",
+            "message": "Session cleared successfully",
+            "new_session": {
+                "session_id": new_session_data['session_id'],
+                "thread_id": new_session_data['thread_id']
+            },
+            "cleared_at": timezone.now().isoformat()
+        })
+
+    except Exception as e:
+        logger.error(f"Failed to clear session {session_id}: {str(e)}")
+        return JsonResponse({"error": "Failed to clear session"}, status=500)
+
+
+@csrf_exempt
 @require_http_methods(["GET"])
 def session_status_api(request, session_id):
     """

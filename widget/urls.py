@@ -24,6 +24,9 @@ urlpatterns = [
     # File upload
     path('session/<str:session_id>/upload/', views.file_upload_api, name='file_upload'),
 
+    # Session management endpoints
+    path('session/<str:session_id>/clear/', views.clear_session_api, name='clear_session'),
+
     # Handover management
     path('session/<str:session_id>/handover/', views.handover_request_api, name='handover_request'),
 

@@ -197,6 +197,13 @@
     margin-top: 2px;
 }
 
+.saia-widget-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.saia-widget-clear,
 .saia-widget-close {
     background: none;
     border: none;
@@ -208,10 +215,12 @@
     margin: -8px;
 }
 
+.saia-widget-clear:hover,
 .saia-widget-close:hover {
     background: rgba(255, 255, 255, 0.1);
 }
 
+.saia-widget-clear svg,
 .saia-widget-close svg {
     width: 18px;
     height: 18px;
@@ -555,5 +564,24 @@
     background: #fef2f2;
     border-left: 3px solid #ef4444;
     color: #dc2626;
+    padding-left: 12px;
+}
+
+.saia-message[data-clearing="true"] {
+    opacity: 0.7;
+}
+
+.saia-message[data-clearing="true"] .saia-message-text {
+    font-style: italic;
+    color: #6b7280;
+    background: #f9fafb;
+    border-left: 3px solid #9ca3af;
+    padding-left: 12px;
+}
+
+.saia-message[data-success="true"] .saia-message-text {
+    background: #f0fdf4;
+    border-left: 3px solid #22c55e;
+    color: #16a34a;
     padding-left: 12px;
 }

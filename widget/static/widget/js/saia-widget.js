@@ -311,6 +311,7 @@ class SAIAWidget {
         this.elements.sendButton = this.elements.widget.querySelector('.saia-widget-send');
         this.elements.attachmentButton = this.elements.widget.querySelector('.saia-widget-attachment');
         this.elements.fileInput = this.elements.widget.querySelector('.saia-widget-file-input');
+        this.elements.clearButton = this.elements.widget.querySelector('.saia-widget-clear');
         
         // Add to container
         this.elements.container.appendChild(this.elements.toggleButton);
@@ -353,12 +354,23 @@ class SAIAWidget {
                         <div class="saia-widget-status">Online</div>
                     </div>
                 </div>
-                <button class="saia-widget-close" aria-label="Close chat">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                </button>
+                <div class="saia-widget-header-actions">
+                    <button class="saia-widget-clear" aria-label="Clear chat" title="Clear conversation">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 6h18"></path>
+                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                            <path d="M8 6V4c0-1 1-2 2-2h4c0-1 1-2 2-2v2"></path>
+                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                        </svg>
+                    </button>
+                    <button class="saia-widget-close" aria-label="Close chat">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
             </div>
             
             <div class="saia-widget-messages" role="log" aria-live="polite" aria-label="Chat messages">
@@ -445,6 +457,13 @@ class SAIAWidget {
         closeButton.addEventListener('click', () => {
             this.close();
         });
+
+        // Clear button click
+        if (this.elements.clearButton) {
+            this.elements.clearButton.addEventListener('click', () => {
+                this.clearSession();
+            });
+        }
         
         // Input handling
         this.elements.input.addEventListener('input', () => {
@@ -827,6 +846,88 @@ class SAIAWidget {
     }
 
     /**
+     * Clear the current session and start fresh
+     */
+    async clearSession() {
+        if (!this.state.sessionId) {
+            this.log('No session to clear');
+            return;
+        }
+
+        try {
+            this.log('Clearing session:', this.state.sessionId);
+
+            // Show confirmation dialog
+            const confirmed = confirm('Are you sure you want to clear this conversation? This action cannot be undone.');
+            if (!confirmed) {
+                return;
+            }
+
+            // Show clearing indicator
+            this.addMessage({
+                content: '🔄 Clearing conversation...',
+                is_ai: true,
+                timestamp: new Date().toISOString(),
+                isClearing: true
+            });
+
+            // Call clear session API
+            const response = await fetch(`${this.config.apiBaseUrl}/api/widget/session/${this.state.sessionId}/clear/`, {
+                method: 'POST'
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+
+            // Update session ID to the new one
+            this.state.sessionId = data.new_session.session_id;
+            this.state.threadId = data.new_session.thread_id;
+
+            // Clear messages from UI
+            this.elements.messages.innerHTML = '';
+
+            // Add welcome message if configured
+            if (this.config.showWelcomeMessage) {
+                const welcomeMessage = this.state.companyConfig?.welcome_message || 'Hello! How can we help you today?';
+
+                this.addMessage({
+                    content: welcomeMessage,
+                    is_ai: true,
+                    timestamp: new Date().toISOString()
+                });
+            }
+
+            // Add success message
+            this.addMessage({
+                content: '✅ Conversation cleared successfully. How can I help you today?',
+                is_ai: true,
+                timestamp: new Date().toISOString(),
+                isSuccess: true
+            });
+
+            // Update activity
+            this.updateActivity();
+
+            // Call callback
+            if (this.config.onSessionClear) {
+                this.config.onSessionClear(data, this);
+            }
+
+            this.log('Session cleared successfully, new session:', this.state.sessionId);
+
+        } catch (error) {
+            // Remove clearing indicator
+            const clearingMessages = this.elements.messages.querySelectorAll('.saia-message[data-clearing="true"]');
+            clearingMessages.forEach(msg => msg.remove());
+
+            this.handleError('Failed to clear session', error);
+        }
+    }
+
+    /**
      * Extract message content from API response
      */
     extractMessageContent(content) {
@@ -859,6 +960,12 @@ class SAIAWidget {
         }
         if (message.isError) {
             messageElement.setAttribute('data-error', 'true');
+        }
+        if (message.isClearing) {
+            messageElement.setAttribute('data-clearing', 'true');
+        }
+        if (message.isSuccess) {
+            messageElement.setAttribute('data-success', 'true');
         }
 
         const time = new Date(message.timestamp);

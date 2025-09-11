@@ -1,5 +1,6 @@
 """
-Management command to set up sample Wazen services for testing the service ordering system.
+Management command to set up correct Wazen services based on wazen-data.md specifications.
+Wazen offers exactly 2 vehicle insurance services as defined in their business documentation.
 """
 
 from django.core.management.base import BaseCommand
@@ -9,52 +10,52 @@ from product.models import Product
 
 
 class Command(BaseCommand):
-    help = 'Set up sample Wazen services for testing service ordering'
+    help = 'Set up correct Wazen services based on wazen-data.md specifications'
 
     def handle(self, *args, **options):
-        self.stdout.write(self.style.SUCCESS('Setting up Wazen services...'))
+        self.stdout.write(self.style.SUCCESS('Setting up correct Wazen services from wazen-data.md...'))
 
         try:
             # Get Wazen company
             wazen_company = Company.objects.get(name='Wazen')
             self.stdout.write(f'Found Wazen company: {wazen_company.name}')
 
-            # Create sample services
+            # Create correct services based on wazen-data.md
+            # Wazen offers exactly 2 vehicle insurance services
             services_data = [
                 {
-                    'name': 'تأمين السيارات',
-                    'price': 1200.00,
-                    'service_description': 'تأمين شامل للسيارات يغطي جميع المخاطر والحوادث. يشمل التأمين ضد الحوادث والسرقة والحريق والكوارث الطبيعية.',
+                    'name': 'تأمين المركبات ضد الغير',
+                    'price': 500.00,
+                    'service_description': '''التأمين الإلزامي للمركبات - الحد الأدنى من التغطية المطلوبة قانونياً.
+
+ما يشمله التأمين:
+• تغطية مسؤوليتك القانونية تجاه الأضرار الجسدية أو المادية التي قد تسببها لطرف ثالث (أفراد أو ممتلكات)
+• الحماية من المطالبات المالية الناتجة عن الحوادث المرورية حتى مبلغ 10 مليون ريال
+
+لماذا تختاره:
+• لحمايتك من المسؤولية المدنية تجاه الآخرين عند وقوع حادث سير للمركبة
+• متطلب نظامي من قبل الجهات المعنية يقدم الحد الأدنى من التغطية المطلوبة
+
+ملاحظة: هذا التأمين لا يغطي أضرار مركبتك أو إصابتك الشخصية.''',
                     'is_service_orderable': True,
                     'requires_customer_info': True
                 },
                 {
-                    'name': 'تأمين المنزل',
-                    'price': 800.00,
-                    'service_description': 'تأمين شامل للمنزل والممتلكات. يغطي الحرائق والسرقة والأضرار الناتجة عن الكوارث الطبيعية.',
+                    'name': 'التأمين الشامل',
+                    'price': 1500.00,
+                    'service_description': '''الحماية الكاملة لمركبتك وللطرف الثالث - التغطية الأشمل والأكثر حماية.
+
+ما يشمله التأمين:
+• تغطية أضرار مركبتك الناتجة عن الحوادث، والحرائق، والسرقة، والكوارث الطبيعية (مثل الفيضانات أو العواصف)
+• تغطية مسؤوليتك تجاه الأضرار التي تلحق بالغير (كما في التأمين ضد الغير)
+• تغطيات اختيارية: تمديد التغطية لدول الخليج، تغطية الزجاج، وغيرها
+
+لماذا تختاره:
+• حماية شاملة لمركبتك واستثمارك من معظم المخاطر
+• مرن مع إمكانية إضافة تغطيات اختيارية تناسب احتياجاتك الخاصة
+• مثالي للأشخاص الذين يرغبون في تغطية أضرار مركباتهم وحمايتهم من المسؤولية تجاه الغير وللمركبات الجديدة أو ذات القيمة العالية''',
                     'is_service_orderable': True,
                     'requires_customer_info': True
-                },
-                {
-                    'name': 'تأمين صحي',
-                    'price': 2500.00,
-                    'service_description': 'تأمين صحي شامل يغطي العلاج في المستشفيات والعيادات. يشمل الفحوصات الدورية والعمليات الجراحية.',
-                    'is_service_orderable': True,
-                    'requires_customer_info': True
-                },
-                {
-                    'name': 'تأمين السفر',
-                    'price': 300.00,
-                    'service_description': 'تأمين شامل للسفر يغطي الطوارئ الطبية وإلغاء الرحلات وفقدان الأمتعة.',
-                    'is_service_orderable': True,
-                    'requires_customer_info': True
-                },
-                {
-                    'name': 'استشارة تأمينية',
-                    'price': 150.00,
-                    'service_description': 'استشارة مجانية مع خبراء التأمين لتحديد أفضل خطة تأمينية تناسب احتياجاتك.',
-                    'is_service_orderable': True,
-                    'requires_customer_info': False
                 }
             ]
 
@@ -112,6 +113,14 @@ class Command(BaseCommand):
                     f'📊 Total orderable services for Wazen: {total_services}'
                 )
             )
+
+            self.stdout.write(
+                self.style.SUCCESS(
+                    '\n✅ Services now match wazen-data.md specifications:'
+                )
+            )
+            self.stdout.write('   1. تأمين المركبات ضد الغير (Third Party Insurance)')
+            self.stdout.write('   2. التأمين الشامل (Comprehensive Insurance)')
 
         except Company.DoesNotExist:
             self.stdout.write(

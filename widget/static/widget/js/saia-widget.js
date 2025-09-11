@@ -692,6 +692,9 @@ class SAIAWidget {
         if (!content || this.state.isLoading) return;
 
         try {
+            // Ensure we have a valid session
+            await this.ensureValidSession();
+
             this.log('Sending message:', content);
 
             // Add user message to UI
@@ -719,6 +722,49 @@ class SAIAWidget {
             });
 
             if (!response.ok) {
+                // If session is invalid (400/404), try to create a new session
+                if (response.status === 400 || response.status === 404) {
+                    this.log('Session appears invalid, creating new session...');
+                    this.removeStoredSession();
+                    this.state.sessionId = null;
+                    await this.createSession();
+
+                    // Retry the message with new session
+                    const retryResponse = await fetch(`${this.config.apiBaseUrl}/api/widget/session/${this.state.sessionId}/send/`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ content })
+                    });
+
+                    if (!retryResponse.ok) {
+                        throw new Error(`HTTP ${retryResponse.status}: ${retryResponse.statusText}`);
+                    }
+
+                    const retryData = await retryResponse.json();
+
+                    // Hide typing indicator
+                    this.hideTypingIndicator();
+
+                    // Add AI response to UI
+                    this.addMessage({
+                        content: this.extractMessageContent(retryData.content),
+                        is_ai: true,
+                        timestamp: retryData.timestamp
+                    });
+
+                    // Update activity
+                    this.updateActivity();
+
+                    // Call callback
+                    if (this.config.onMessage) {
+                        this.config.onMessage(retryData, this);
+                    }
+
+                    return; // Exit early since we handled the retry
+                }
+
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
 
@@ -969,6 +1015,34 @@ class SAIAWidget {
 
         } catch (error) {
             this.log('Error clearing browser data:', error);
+        }
+    }
+
+    /**
+     * Ensure we have a valid session
+     */
+    async ensureValidSession() {
+        // If no session ID, create one
+        if (!this.state.sessionId) {
+            await this.createSession();
+            return;
+        }
+
+        try {
+            // Test if current session is valid by checking status
+            const response = await fetch(`${this.config.apiBaseUrl}/api/widget/session/${this.state.sessionId}/status/`);
+
+            if (!response.ok) {
+                this.log('Current session is invalid, creating new session...');
+                this.removeStoredSession();
+                this.state.sessionId = null;
+                await this.createSession();
+            }
+        } catch (error) {
+            this.log('Error checking session status, creating new session:', error);
+            this.removeStoredSession();
+            this.state.sessionId = null;
+            await this.createSession();
         }
     }
 

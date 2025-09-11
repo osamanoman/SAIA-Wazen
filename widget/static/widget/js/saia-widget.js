@@ -886,6 +886,9 @@ class SAIAWidget {
             this.state.sessionId = data.new_session.session_id;
             this.state.threadId = data.new_session.thread_id;
 
+            // Clear browser storage and cache
+            this.clearBrowserData();
+
             // Clear messages from UI
             this.elements.messages.innerHTML = '';
 
@@ -924,6 +927,80 @@ class SAIAWidget {
             clearingMessages.forEach(msg => msg.remove());
 
             this.handleError('Failed to clear session', error);
+        }
+    }
+
+    /**
+     * Clear browser data (cookies, localStorage, sessionStorage)
+     */
+    clearBrowserData() {
+        try {
+            this.log('Clearing browser data...');
+
+            // Clear localStorage items related to this widget
+            const keysToRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.startsWith('saia-widget-') || key.includes(this.state.sessionId))) {
+                    keysToRemove.push(key);
+                }
+            }
+            keysToRemove.forEach(key => localStorage.removeItem(key));
+
+            // Clear sessionStorage items related to this widget
+            const sessionKeysToRemove = [];
+            for (let i = 0; i < sessionStorage.length; i++) {
+                const key = sessionStorage.key(i);
+                if (key && (key.startsWith('saia-widget-') || key.includes(this.state.sessionId))) {
+                    sessionKeysToRemove.push(key);
+                }
+            }
+            sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
+
+            // Clear widget-related cookies
+            this.clearWidgetCookies();
+
+            // Reset widget state
+            this.state.messages = [];
+            this.state.isLoading = false;
+            this.state.lastActivity = new Date();
+
+            this.log('Browser data cleared successfully');
+
+        } catch (error) {
+            this.log('Error clearing browser data:', error);
+        }
+    }
+
+    /**
+     * Clear widget-related cookies
+     */
+    clearWidgetCookies() {
+        try {
+            // Get all cookies
+            const cookies = document.cookie.split(';');
+
+            // Clear widget-related cookies
+            cookies.forEach(cookie => {
+                const [name] = cookie.split('=');
+                const cookieName = name.trim();
+
+                // Clear cookies that contain widget, session ID, or SAIA-related terms
+                if (cookieName.includes('saia') ||
+                    cookieName.includes('widget') ||
+                    cookieName.includes(this.state.sessionId) ||
+                    cookieName.includes('chat')) {
+
+                    // Clear cookie by setting it to expire in the past
+                    document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname}`;
+                    document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/`;
+
+                    this.log(`Cleared cookie: ${cookieName}`);
+                }
+            });
+
+        } catch (error) {
+            this.log('Error clearing cookies:', error);
         }
     }
 

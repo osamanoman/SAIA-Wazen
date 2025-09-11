@@ -9,6 +9,8 @@ from django.views.decorators.http import require_http_methods
 from django.utils import timezone
 from django.db import transaction
 from django.contrib.auth import get_user_model
+
+User = get_user_model()
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from django.conf import settings
@@ -460,22 +462,64 @@ def clear_session_api(request, session_id):
                 except Exception as e:
                     logger.warning(f"Failed to delete uploaded file {file_info.get('file_path')}: {e}")
 
-        # Create a new fresh session
-        new_session_data = create_widget_session(
-            company_identifier=company.name.lower(),
-            visitor_ip=visitor_ip,
-            user_agent=user_agent,
-            referrer_url=referrer_url
+        # Create a new fresh session using the same logic as session_create_api
+        # Get company-specific AI assistant
+        assistant_id = company.get_company_assistant_id()
+        if not assistant_id:
+            return JsonResponse({
+                "error": "AI assistant not available",
+                "details": f"No AI assistant configured for {company.name}"
+            }, status=503)
+
+        # Create or get company-specific anonymous user for widget sessions
+        anonymous_username = f'widget_anonymous_{company.name.lower()}'
+        anonymous_user, created = User.objects.get_or_create(
+            username=anonymous_username,
+            defaults={
+                'email': f'anonymous@{company.name.lower()}.widget',
+                'first_name': 'Anonymous',
+                'last_name': f'{company.name} Widget User',
+                'is_active': True,
+                'is_staff': False,
+                'is_superuser': False,
+                'is_customer': True,
+                'company': company
+            }
         )
 
-        logger.info(f"Session {session_id} cleared and new session {new_session_data['session_id']} created")
+        # Ensure the user is properly configured
+        if not anonymous_user.company or not anonymous_user.is_customer:
+            anonymous_user.company = company
+            anonymous_user.is_customer = True
+            anonymous_user.save()
+
+        # Create new thread
+        thread_name = f"{company.name} Website Visitor {uuid.uuid4().hex[:8]}"
+        new_thread = Thread.objects.create(
+            name=thread_name,
+            created_by=anonymous_user,
+            assistant_id=assistant_id
+        )
+
+        # Create new website session
+        new_website_session = WebsiteSession.objects.create(
+            session_id=uuid.uuid4(),
+            thread=new_thread,
+            company=company,
+            visitor_ip=visitor_ip,
+            user_agent=user_agent,
+            referrer_url=referrer_url,
+            visitor_metadata={}
+        )
+
+        logger.info(f"Session {session_id} cleared and new session {new_website_session.session_id} created")
 
         return JsonResponse({
             "status": "success",
             "message": "Session cleared successfully",
             "new_session": {
-                "session_id": new_session_data['session_id'],
-                "thread_id": new_session_data['thread_id']
+                "session_id": str(new_website_session.session_id),
+                "thread_id": new_thread.id
             },
             "cleared_at": timezone.now().isoformat()
         })

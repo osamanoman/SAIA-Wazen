@@ -687,21 +687,49 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
             ).first()
 
             if not service:
-                # Try alternative names for common services
-                service_name_lower = service_name.lower()
-                if 'شامل' in service_name_lower or 'comprehensive' in service_name_lower:
+                # Try comprehensive alternative names for common services
+                service_name_lower = service_name.lower().strip()
+
+                # Comprehensive insurance variations
+                comprehensive_keywords = [
+                    'شامل', 'تامين شامل', 'تأمين شامل', 'التأمين الشامل', 'التامين الشامل',
+                    'اشترك تامين شامل', 'ابغى تامين شامل', 'اريد تامين شامل', 'تامين كامل',
+                    'comprehensive', 'full coverage', 'شامل لسيارتي', 'تامين شامل للسيارة'
+                ]
+
+                # Third party insurance variations
+                third_party_keywords = [
+                    'ضد الغير', 'تامين ضد الغير', 'تأمين ضد الغير', 'المركبات ضد الغير',
+                    'تأمين المركبات ضد الغير', 'تامين المركبات ضد الغير', 'third party',
+                    'liability', 'الزامي', 'إلزامي'
+                ]
+
+                # Check for comprehensive insurance
+                if any(keyword in service_name_lower for keyword in comprehensive_keywords):
                     service = Product.objects.filter(
                         company=user.company,
                         type='service',
                         is_service_orderable=True,
                         name__icontains='شامل'
                     ).first()
-                elif 'ضد الغير' in service_name_lower or 'third party' in service_name_lower:
+
+                # Check for third party insurance
+                elif any(keyword in service_name_lower for keyword in third_party_keywords):
                     service = Product.objects.filter(
                         company=user.company,
                         type='service',
                         is_service_orderable=True,
                         name__icontains='ضد الغير'
+                    ).first()
+
+                # General insurance keywords
+                elif any(keyword in service_name_lower for keyword in ['تامين', 'تأمين', 'insurance']):
+                    # If just "تامين" or "تأمين", default to comprehensive
+                    service = Product.objects.filter(
+                        company=user.company,
+                        type='service',
+                        is_service_orderable=True,
+                        name__icontains='شامل'
                     ).first()
 
             if not service:
@@ -1352,7 +1380,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
                 "confirmation_data": confirmation_data,
                 "session_key": cache_entry.session_key,
                 "next_step": "confirm_order",
-                "message": "ممتاز! خلاص جمعنا كل المعلومات بنجاح. راجع طلبك وأكده."
+                "message": "ممتاز! خلاص جمعنا كل المعلومات بنجاح. راجع طلبك وأكده."Killer. Hello. Huh. Nalam. Internet. Just. 
             }, ensure_ascii=False)
 
         except Exception as e:

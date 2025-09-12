@@ -32,8 +32,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
     instructions = """
 🏢 **مساعد وازن الذكي**
 
-🚨 **قاعدة إجبارية رقم 1: لكل رسالة من المستخدم، أول شي أستدعي get_smart_response(user_message)**
-🚨 **قاعدة إجبارية رقم 2: ما أرد أبداً مباشرة بدون استخدام get_smart_response() أولاً**
+🚨 **قاعدة إجبارية: لكل رسالة من المستخدم، أول شي أستدعي get_smart_response(user_message)**
 
 أهلاً وسهلاً! أنا مساعدك الذكي لشركة وازن. أتكلم باللهجة السعودية وأقدر أساعدك في كل شي تحتاجه:
 
@@ -48,15 +47,11 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
 
 4. **الدعم العام** - لأي أسئلة ثانية، أساعدك وأتأكد من قاعدة المعرفة أول شي.
 
-**🤖 سلوك ذكي - إجباري:**
-- **لكل رسالة من المستخدم**: أول شي أستدعي get_smart_response(user_message) قبل أي رد
-- **ما أرد أبداً مباشرة**: لازم أمر عبر get_smart_response() أولاً
-- **الاستثناءات الوحيدة**: استدعاء method tools أخرى بعد get_smart_response()
-- **السلامات**: get_smart_response() يتعامل معها تلقائياً
-- **أسئلة المعرفة**: get_smart_response() يوجهها للبحث المناسب
-- **طلب الخدمات**: get_smart_response() يكتشفها ويبدأ العملية
-- **جمع البيانات**: بعد get_smart_response() أستخدم طرق التحقق
-- **محادثة طبيعية**: كل شي يمر عبر get_smart_response() أولاً
+**🤖 سلوك ذكي:**
+- **السلامات**: أرد بحرارة وأعرض المساعدة
+- **أسئلة المعرفة**: أبحث في قاعدة المعرفة وأعطي إجابات مفصلة
+- **طلب الخدمات**: أبدأ عملية جمع البيانات وطلب الخدمة
+- **الدعم العام**: أساعد وأتأكد من المعلومات المتاحة
 
 **🛍️ طريقة طلب الخدمات:**
 لما أحس إنك تبي تطلب خدمة، تلقائياً أسوي:
@@ -428,10 +423,21 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
         except:
             return False
 
-    @lru_cache(maxsize=100)
     def _cached_knowledge_search(self, query: str, limit: int = 10):
         """Cached knowledge search to improve performance."""
-        return self.knowledge_service.search_knowledge(query, limit=limit)
+        # Use Django cache framework instead of lru_cache for instance methods
+        from django.core.cache import cache
+        cache_key = f"wazen_knowledge_{hash(query)}_{limit}"
+
+        # Try to get from cache first
+        results = cache.get(cache_key)
+        if results is not None:
+            return results
+
+        # If not in cache, search and cache the results
+        results = self.knowledge_service.search_knowledge(query, limit=limit)
+        cache.set(cache_key, results, timeout=300)  # Cache for 5 minutes
+        return results
 
     @method_tool
     def search_wazen_knowledge(self, query: str, limit: int = 10) -> str:
@@ -616,17 +622,17 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
             # Use atomic get_or_create to prevent race conditions
             expires_at = timezone.now() + timedelta(minutes=30)  # 30 minute timeout
 
-            # First try to get existing non-expired cache
-            cache_entry = ServiceOrderCache.objects.filter(
+            # First check for existing non-expired cache for this user/company
+            existing_cache = ServiceOrderCache.objects.filter(
                 user=user,
                 company=user.company,
                 expires_at__gt=timezone.now()
             ).first()
 
-            if cache_entry:
-                return cache_entry
+            if existing_cache:
+                return existing_cache
 
-            # Create new cache entry atomically
+            # No existing cache, create new one atomically using session_key as unique identifier
             cache_entry, created = ServiceOrderCache.objects.get_or_create(
                 session_key=session_key,
                 defaults={
@@ -859,7 +865,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
 
             # Get current cache entry using helper method
             cache_entry, error_response = self._get_cache_or_error()
-            if not cache_entry:
+            if error_response:
                 return error_response
 
             # Update cached data
@@ -916,7 +922,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
 
             # Get current cache entry using helper method
             cache_entry, error_response = self._get_cache_or_error()
-            if not cache_entry:
+            if error_response:
                 return error_response
 
             # Update cached data
@@ -974,7 +980,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
 
             # Get current cache entry using helper method
             cache_entry, error_response = self._get_cache_or_error()
-            if not cache_entry:
+            if error_response:
                 return error_response
 
             # Update cached data

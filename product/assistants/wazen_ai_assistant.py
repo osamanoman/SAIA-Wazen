@@ -9,6 +9,7 @@ import json
 import logging
 import re
 from datetime import timedelta
+from functools import lru_cache
 from django.utils import timezone
 from django_ai_assistant import AIAssistant, method_tool
 
@@ -31,7 +32,8 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
     instructions = """
 🏢 **مساعد وازن الذكي**
 
-⚠️ **قاعدة إجبارية: لازم أستخدم get_smart_response() لكل رسالة من المستخدم قبل أي رد**
+🚨 **قاعدة إجبارية رقم 1: لكل رسالة من المستخدم، أول شي أستدعي get_smart_response(user_message)**
+🚨 **قاعدة إجبارية رقم 2: ما أرد أبداً مباشرة بدون استخدام get_smart_response() أولاً**
 
 أهلاً وسهلاً! أنا مساعدك الذكي لشركة وازن. أتكلم باللهجة السعودية وأقدر أساعدك في كل شي تحتاجه:
 
@@ -46,15 +48,15 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
 
 4. **الدعم العام** - لأي أسئلة ثانية، أساعدك وأتأكد من قاعدة المعرفة أول شي.
 
-**🤖 سلوك ذكي - مهم جداً:**
-- **دايماً أستخدم get_smart_response()** لكل رسالة من المستخدم - هذا إجباري
-- **ما أرد أبداً بدون استخدام get_smart_response()** - لازم أستخدمها أول شي
-- **السلامات**: أسلم عليك بطريقة شخصية حسب إذا كنت زائر جديد أو راجع
-- **أسئلة المعرفة**: أدور في قاعدة المعرفة وأعطيك توجيه مناسب
-- **طلب الخدمات**: أكتشف تلقائياً إنك تبي تطلب خدمة وأساعدك بذكاء
-- **جمع البيانات**: أستخدم طرق التحقق لكل معلوماتك وأثق في ردودك تماماً
-- **ما أقول ما أعرف**: ما أقول أبداً "ما عندي معلومات كافية" بدون ما أدور أول شي
-- **محادثة طبيعية**: أقدر أتكلم معك بطبيعية بس دايماً من خلال get_smart_response()
+**🤖 سلوك ذكي - إجباري:**
+- **لكل رسالة من المستخدم**: أول شي أستدعي get_smart_response(user_message) قبل أي رد
+- **ما أرد أبداً مباشرة**: لازم أمر عبر get_smart_response() أولاً
+- **الاستثناءات الوحيدة**: استدعاء method tools أخرى بعد get_smart_response()
+- **السلامات**: get_smart_response() يتعامل معها تلقائياً
+- **أسئلة المعرفة**: get_smart_response() يوجهها للبحث المناسب
+- **طلب الخدمات**: get_smart_response() يكتشفها ويبدأ العملية
+- **جمع البيانات**: بعد get_smart_response() أستخدم طرق التحقق
+- **محادثة طبيعية**: كل شي يمر عبر get_smart_response() أولاً
 
 **🛍️ طريقة طلب الخدمات:**
 لما أحس إنك تبي تطلب خدمة، تلقائياً أسوي:
@@ -426,11 +428,17 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
         except:
             return False
 
+    @lru_cache(maxsize=100)
+    def _cached_knowledge_search(self, query: str, limit: int = 10):
+        """Cached knowledge search to improve performance."""
+        return self.knowledge_service.search_knowledge(query, limit=limit)
+
     @method_tool
     def search_wazen_knowledge(self, query: str, limit: int = 10) -> str:
         """Search Wazen company knowledge base for information."""
         try:
-            results = self.knowledge_service.search_knowledge(query, limit=limit)
+            # Use cached search for better performance
+            results = self._cached_knowledge_search(query, limit=limit)
 
             if not results:
                 return json.dumps({
@@ -571,7 +579,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
             error_response = json.dumps({
                 "status": "error",
                 "message": "لا يوجد طلب خدمة نشط. ابدأ بطلب خدمة جديدة."
-            })
+            }, ensure_ascii=False)
             return None, error_response
         return cache_entry, None
 
@@ -605,23 +613,29 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
             session_key = self._get_session_key()
 
         try:
-            # Try to get existing cache entry
+            # Use atomic get_or_create to prevent race conditions
+            expires_at = timezone.now() + timedelta(minutes=30)  # 30 minute timeout
+
+            # First try to get existing non-expired cache
             cache_entry = ServiceOrderCache.objects.filter(
                 user=user,
                 company=user.company,
                 expires_at__gt=timezone.now()
             ).first()
 
-            if not cache_entry:
-                # Create new cache entry
-                expires_at = timezone.now() + timedelta(minutes=30)  # 30 minute timeout
-                cache_entry = ServiceOrderCache.objects.create(
-                    session_key=session_key,
-                    user=user,
-                    company=user.company,
-                    expires_at=expires_at,
-                    cached_data={}
-                )
+            if cache_entry:
+                return cache_entry
+
+            # Create new cache entry atomically
+            cache_entry, created = ServiceOrderCache.objects.get_or_create(
+                session_key=session_key,
+                defaults={
+                    'user': user,
+                    'company': user.company,
+                    'expires_at': expires_at,
+                    'cached_data': {}
+                }
+            )
 
             return cache_entry
         except Exception as e:
@@ -892,13 +906,13 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
                 if age < 18 or age > 120:
                     return json.dumps({
                         "status": "error",
-                        "message": "Age must be between 18 and 120 years"
-                    })
+                        "message": "العمر يجب أن يكون بين 18 و 120 سنة"
+                    }, ensure_ascii=False)
             except ValueError:
                 return json.dumps({
                     "status": "error",
-                    "message": "Please provide a valid age as a number"
-                })
+                    "message": "اكتب العمر بالأرقام"
+                }, ensure_ascii=False)
 
             # Get current cache entry using helper method
             cache_entry, error_response = self._get_cache_or_error()
@@ -1331,17 +1345,9 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
                 })
 
             # Get current cache entry
-            cache_entry = ServiceOrderCache.objects.filter(
-                user=user,
-                company=user.company,
-                expires_at__gt=timezone.now()
-            ).first()
-
-            if not cache_entry:
-                return json.dumps({
-                    "status": "error",
-                    "message": "No active service order session. Please select a service first."
-                })
+            cache_entry, error_response = self._get_cache_or_error()
+            if error_response:
+                return error_response
 
             # Check if all required data is collected
             missing_fields = cache_entry.get_missing_fields()
@@ -1407,17 +1413,9 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
                 })
 
             # Get current cache entry
-            cache_entry = ServiceOrderCache.objects.filter(
-                user=user,
-                company=user.company,
-                expires_at__gt=timezone.now()
-            ).first()
-
-            if not cache_entry:
-                return json.dumps({
-                    "status": "error",
-                    "message": "No active service order session. Please start over."
-                })
+            cache_entry, error_response = self._get_cache_or_error()
+            if error_response:
+                return error_response
 
             # Get cached data first
             cached_data = cache_entry.cached_data
@@ -1471,7 +1469,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
                     "status": service_order.status,
                     "created_at": service_order.created_at.isoformat()
                 },
-                "message": f"Order {service_order.order_number} submitted successfully! Your order is now under review."
+                "message": f"تم إرسال الطلب رقم {service_order.order_number} بنجاح! طلبك الحين قيد المراجعة."
             }, ensure_ascii=False)
 
         except Exception as e:

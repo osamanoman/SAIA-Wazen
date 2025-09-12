@@ -416,7 +416,7 @@ def file_upload_api(request, session_id):
                     result_data = json.loads(result)
                     if result_data.get('status') == 'error':
                         # No active service order - send a follow-up message to guide user
-                        follow_up_message = "تم رفع الصورة بنجاح! لإكمال طلب الخدمة، يرجى إخباري بنوع الخدمة التي تريد طلبها."
+                        follow_up_message = "تم رفع الصورة بنجاح! لإكمال طلب الخدمة، تكفى قول لي إيش نوع الخدمة اللي تبي تطلبها."
                         create_message(
                             assistant_id=website_session.thread.assistant_id,
                             thread=website_session.thread,
@@ -432,6 +432,37 @@ def file_upload_api(request, session_id):
         except Exception as e:
             logger.warning(f"Could not trigger AI assistant image processing: {e}")
 
+        # Get the latest AI response from the thread (similar to message_send_api)
+        latest_message = website_session.thread.messages.order_by('-created_at').first()
+        ai_response_content = None
+        ai_response_timestamp = None
+
+        if latest_message:
+            # Extract content from the message data structure (same logic as message_send_api)
+            message_content = latest_message.message
+            content = ""
+
+            if isinstance(message_content, dict):
+                # Handle nested data structure from AI response
+                if 'data' in message_content and isinstance(message_content['data'], dict):
+                    # Extract from nested data structure
+                    data_content = message_content['data']
+                    if 'content' in data_content:
+                        content = data_content['content']
+                    else:
+                        content = str(data_content)
+                elif 'content' in message_content:
+                    # Direct content field
+                    content = message_content['content']
+                else:
+                    # Fallback to string representation
+                    content = str(message_content)
+            else:
+                content = str(message_content)
+
+            ai_response_content = content
+            ai_response_timestamp = latest_message.created_at.isoformat()
+
         logger.info(f"File uploaded to session {session_id}: {uploaded_file.name}")
 
         response_data = {
@@ -443,7 +474,12 @@ def file_upload_api(request, session_id):
                 "type": uploaded_file.content_type,
                 "url": file_url
             },
-            "upload_time": timezone.now().isoformat()
+            "upload_time": timezone.now().isoformat(),
+            "ai_response": {
+                "content": ai_response_content,
+                "timestamp": ai_response_timestamp,
+                "has_response": ai_response_content is not None
+            }
         }
 
         response = JsonResponse(response_data)

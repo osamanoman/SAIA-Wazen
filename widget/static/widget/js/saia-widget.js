@@ -887,6 +887,15 @@ class SAIAWidget {
                 fileInfo: data.file_info
             });
 
+            // Add AI response if available
+            if (data.ai_response && data.ai_response.has_response && data.ai_response.content) {
+                this.addMessage({
+                    content: this.extractMessageContent(data.ai_response.content),
+                    is_ai: true,
+                    timestamp: data.ai_response.timestamp
+                });
+            }
+
             // Update activity
             this.updateActivity();
 

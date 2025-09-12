@@ -1,0 +1,134 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: saia-app
+  namespace: saia-wazen
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: saia-app
+  template:
+    metadata:
+      labels:
+        app: saia-app
+    spec:
+      initContainers:
+      - name: migrate
+        image: swr.me-east-1.myhuaweicloud.com/wazen-containers/saia-wazen-app:latest
+        command: ['python', 'manage.py', 'migrate']
+        envFrom:
+        - configMapRef:
+            name: saia-config
+        - secretRef:
+            name: saia-secrets
+        env:
+        - name: ALLOWED_HOSTS
+          value: "your-domain.com,api.your-domain.com"
+        - name: WIDGET_ALLOWED_ORIGINS
+          value: "https://wazen.com,https://www.wazen.com"
+      containers:
+      - name: saia-app
+        image: swr.me-east-1.myhuaweicloud.com/wazen-containers/saia-wazen-app:latest
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: saia-config
+        - secretRef:
+            name: saia-secrets
+        env:
+        - name: ALLOWED_HOSTS
+          value: "your-domain.com,api.your-domain.com"
+        - name: WIDGET_ALLOWED_ORIGINS
+          value: "https://wazen.com,https://www.wazen.com"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/widget/config/wazen/
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/widget/config/wazen/
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        volumeMounts:
+        - name: static-files
+          mountPath: /app/static
+        - name: media-files
+          mountPath: /app/media
+        - name: logs
+          mountPath: /app/logs
+      volumes:
+      - name: static-files
+        persistentVolumeClaim:
+          claimName: static-pvc
+      - name: media-files
+        persistentVolumeClaim:
+          claimName: media-pvc
+      - name: logs
+        persistentVolumeClaim:
+          claimName: logs-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: saia-app-service
+  namespace: saia-wazen
+spec:
+  selector:
+    app: saia-app
+  ports:
+  - port: 80
+    targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: static-pvc
+  namespace: saia-wazen
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: csi-nas
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-pvc
+  namespace: saia-wazen
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: csi-nas
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: logs-pvc
+  namespace: saia-wazen
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: csi-nas

@@ -1,15 +1,18 @@
 """
-Helper functions for SAIA Multi-Tenant Website Chatbot Platform
+Helper functions for SAIA Multi-Tenant Website Chatbot Widget
+
+This module contains utility functions for managing website chat sessions,
+thread creation, and company-specific configurations.
 """
 
 import uuid
-from typing import Optional, Dict, Any
-from django.contrib.auth import get_user_model
+from typing import Dict, Any, Optional, List
 from django.utils import timezone
-
+from django.contrib.auth import get_user_model
 from django_ai_assistant.models import Thread as BaseThread
+
 from company.models import Company
-from .models import ThreadExtension, WebsiteSession, WidgetConfiguration
+from .models import WebsiteSession, ThreadExtension, WidgetConfiguration
 
 User = get_user_model()
 
@@ -23,31 +26,47 @@ def create_website_thread(
 ) -> tuple[BaseThread, WebsiteSession]:
     """
     Create a new website chat thread for anonymous visitors.
-    
+
     Args:
         company: Company the visitor is chatting with
         visitor_ip: IP address of the visitor
         user_agent: Browser user agent string
         referrer_url: URL that referred the visitor
         visitor_metadata: Additional visitor information
-    
+
     Returns:
         tuple: (Thread, WebsiteSession) objects
     """
-    
+
     # Get company's AI assistant ID
     assistant_id = company.get_company_assistant_id()
     if not assistant_id:
         # Fallback to default company assistant naming
         assistant_id = f"{company.name.lower().replace(' ', '_')}_ai_assistant"
-    
+
     # Create thread name
     thread_name = f"{company.name} Website Visitor {uuid.uuid4().hex[:8]}"
-    
-    # Create the base thread (anonymous, no user)
+
+    # Create or get anonymous user for this company
+    anonymous_username = f'widget_anonymous_{company.name.lower()}'
+    anonymous_user, created = User.objects.get_or_create(
+        username=anonymous_username,
+        defaults={
+            'email': f'anonymous@{company.name.lower()}.widget',
+            'first_name': 'Anonymous',
+            'last_name': f'{company.name} Widget User',
+            'is_active': True,
+            'is_staff': False,
+            'is_superuser': False,
+            'is_customer': True,  # Mark as customer user
+            'company': company
+        }
+    )
+
+    # Create the base thread with anonymous user as creator
     thread = BaseThread.objects.create(
         name=thread_name,
-        created_by=None,  # Anonymous visitor
+        created_by=anonymous_user,  # Use anonymous user as creator
         assistant_id=assistant_id
     )
     
@@ -102,7 +121,7 @@ def create_admin_thread(
         if not assistant_id:
             assistant_id = f"{company.name.lower().replace(' ', '_')}_ai_assistant"
     
-    # Create the base thread
+    # Create the thread
     thread = BaseThread.objects.create(
         name=thread_name,
         created_by=user,
@@ -113,8 +132,7 @@ def create_admin_thread(
     ThreadExtension.objects.create(
         thread=thread,
         session_type='admin',
-        is_anonymous=False,
-        visitor_metadata={}
+        is_anonymous=False
     )
     
     return thread
@@ -145,7 +163,11 @@ def get_company_widget_config(company: Company) -> WidgetConfiguration:
             'position': 'bottom-right',
             'auto_open': False,
             'auto_open_delay': 3,
-            'is_active': True
+            'is_active': True,
+            'rate_limit_per_minute': 20,
+            'max_message_length': 2000,
+            'allowed_file_types': ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'txt'],
+            'max_file_size_mb': 5
         }
     )
     
@@ -210,38 +232,40 @@ def get_thread_company(thread: BaseThread) -> Optional[Company]:
         return None
 
 
-def get_active_website_sessions(company: Company) -> 'QuerySet[WebsiteSession]':
+def get_active_website_sessions(company: Company = None) -> List[WebsiteSession]:
     """
-    Get active website sessions for a company.
+    Get all active website sessions, optionally filtered by company.
     
     Args:
-        company: Company to get sessions for
+        company: Optional company filter
     
     Returns:
-        QuerySet: Active website sessions
+        List[WebsiteSession]: Active sessions
     """
-    return WebsiteSession.objects.filter(
-        company=company,
-        status='active'
-    ).select_related('thread').order_by('-last_activity')
+    queryset = WebsiteSession.objects.filter(status='active')
+    
+    if company:
+        queryset = queryset.filter(company=company)
+    
+    return queryset.select_related('company', 'thread').order_by('-last_activity')
 
 
-def get_expired_website_sessions(timeout_minutes: int = 30) -> 'QuerySet[WebsiteSession]':
+def get_expired_website_sessions(timeout_minutes: int = 30) -> List[WebsiteSession]:
     """
-    Get expired website sessions that should be closed.
+    Get expired website sessions based on inactivity timeout.
     
     Args:
         timeout_minutes: Session timeout in minutes
     
     Returns:
-        QuerySet: Expired website sessions
+        List[WebsiteSession]: Expired sessions
     """
-    timeout_time = timezone.now() - timezone.timedelta(minutes=timeout_minutes)
+    cutoff_time = timezone.now() - timezone.timedelta(minutes=timeout_minutes)
     
     return WebsiteSession.objects.filter(
         status='active',
-        last_activity__lt=timeout_time
-    )
+        last_activity__lt=cutoff_time
+    ).select_related('company', 'thread')
 
 
 def close_expired_sessions(timeout_minutes: int = 30) -> int:
@@ -258,6 +282,34 @@ def close_expired_sessions(timeout_minutes: int = 30) -> int:
     count = expired_sessions.count()
     
     for session in expired_sessions:
-        session.close_session(reason='timeout')
+        session.close_session()
     
     return count
+
+
+def get_company_by_slug(company_slug: str) -> Optional[Company]:
+    """
+    Get company by slug (name converted to lowercase with spaces replaced by hyphens).
+
+    Args:
+        company_slug: Company slug (e.g., 'wazen', 'my-company')
+
+    Returns:
+        Company: Company object or None
+    """
+    try:
+        # Convert slug back to potential company name
+        potential_name = company_slug.replace('-', ' ').replace('_', ' ')
+
+        # Try exact case-insensitive match first
+        return Company.objects.get(name__iexact=potential_name)
+    except Company.DoesNotExist:
+        # Try partial case-insensitive match
+        try:
+            return Company.objects.get(name__icontains=potential_name)
+        except Company.DoesNotExist:
+            # Try with original slug as-is
+            try:
+                return Company.objects.get(name__iexact=company_slug)
+            except Company.DoesNotExist:
+                return None

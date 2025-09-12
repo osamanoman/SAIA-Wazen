@@ -19,8 +19,14 @@ from django_ai_assistant.models import Thread, Message
 from django_ai_assistant.helpers.use_cases import create_message
 
 from company.models import Company
-from .models import WebsiteSession, SessionHandover
+from .models import WebsiteSession, SessionHandover, ThreadExtension, WidgetConfiguration
 from .security import rate_limit, validate_widget_request, add_cors_headers
+from .helpers import (
+    create_website_thread,
+    get_company_widget_config,
+    get_company_by_slug,
+    close_expired_sessions
+)
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -42,6 +48,7 @@ def widget_config_api(request, company_slug):
         cached_config = cache.get(cache_key)
         if cached_config:
             return JsonResponse(cached_config)
+
         # Validate company slug format
         if not company_slug.replace('-', '').replace('_', '').isalnum():
             return JsonResponse({
@@ -49,8 +56,17 @@ def widget_config_api(request, company_slug):
                 "message": "Company identifier contains invalid characters"
             }, status=400)
 
-        # Get company
-        company = Company.objects.get(name__iexact=company_slug)
+        # Get company using helper function
+        company = get_company_by_slug(company_slug)
+        if not company:
+            return JsonResponse({"error": f"Company '{company_slug}' not found"}, status=404)
+
+        # Get widget configuration
+        widget_config = get_company_widget_config(company)
+
+        # Check if widget is active
+        if not widget_config.is_active:
+            return JsonResponse({"error": "Widget is not active for this company"}, status=403)
 
         # Get company-specific AI assistant (same as admin interface)
         assistant_id = company.get_company_assistant_id()
@@ -59,10 +75,14 @@ def widget_config_api(request, company_slug):
         response_data = {
             "company_name": company.name,
             "assistant_id": assistant_id,
-            "welcome_message": company.get_widget_welcome_message(),
-            "theme_config": company.get_widget_theme_config(),
-            "position": company.widget_position or "bottom-right",
-            "is_active": company.widget_is_active
+            "welcome_message": widget_config.welcome_message,
+            "theme_config": widget_config.get_theme_config(),
+            "position": widget_config.position,
+            "auto_open": widget_config.auto_open,
+            "auto_open_delay": widget_config.auto_open_delay,
+            "is_active": widget_config.is_active,
+            "rate_limit": widget_config.rate_limit_per_minute,
+            "max_message_length": widget_config.max_message_length
         }
 
         # Cache the config for 5 minutes to reduce database hits
@@ -71,8 +91,6 @@ def widget_config_api(request, company_slug):
         response = JsonResponse(response_data)
         return add_cors_headers(response, request.META.get('HTTP_ORIGIN'))
 
-    except Company.DoesNotExist:
-        return JsonResponse({"error": f"Company '{company_slug}' not found"}, status=404)
     except Exception as e:
         logger.error(f"Error getting widget config for {company_slug}: {e}")
         return JsonResponse({"error": "Failed to load widget configuration"}, status=500)
@@ -101,65 +119,28 @@ def session_create_api(request, company_slug):
         data = json.loads(request.body)
         visitor_ip = data.get('visitor_ip')
 
-        # Get company
-        company = Company.objects.get(name__iexact=company_slug)
+        # Get company using helper function
+        company = get_company_by_slug(company_slug)
+        if not company:
+            return JsonResponse({"error": f"Company '{company_slug}' not found"}, status=404)
 
-        # Get company-specific AI assistant (using same logic as admin interface)
-        assistant_id = company.get_company_assistant_id()
-        if not assistant_id:
-            return JsonResponse({
-                "error": "AI assistant not available",
-                "details": f"No AI assistant configured for {company.name}"
-            }, status=503)
+        # Get widget configuration and check if active
+        widget_config = get_company_widget_config(company)
+        if not widget_config.is_active:
+            return JsonResponse({"error": "Widget is not active for this company"}, status=403)
 
-        # Verify assistant exists (using the same logic as project views)
-        from product.assistants import COMPANY_ASSISTANTS
-        if assistant_id not in COMPANY_ASSISTANTS:
-            return JsonResponse({
-                "error": "AI assistant not available",
-                "details": f"Company assistant '{assistant_id}' is not configured"
-            }, status=503)
+        # Clean up expired sessions before creating new one
+        close_expired_sessions(timeout_minutes=30)
 
-        # Create or get company-specific anonymous user for widget sessions
-        anonymous_username = f'widget_anonymous_{company.name.lower()}'
-        anonymous_user, created = User.objects.get_or_create(
-            username=anonymous_username,
-            defaults={
-                'email': f'anonymous@{company.name.lower()}.widget',
-                'first_name': 'Anonymous',
-                'last_name': f'{company.name} Widget User',
-                'is_active': True,
-                'is_staff': False,
-                'is_superuser': False,
-                'is_customer': True,  # Mark as customer user for permission system
-                'company': company  # Assign to company for AI assistant verification
-            }
-        )
-
-        # Ensure the user is properly configured (in case it was created before)
-        if not anonymous_user.company or not anonymous_user.is_customer:
-            anonymous_user.company = company
-            anonymous_user.is_customer = True  # Ensure customer flag is set
-            anonymous_user.save()
-
-        # Create thread using existing logic (with anonymous user as owner)
-        thread_name = f"{company.name} Website Visitor {uuid.uuid4().hex[:8]}"
-        thread = Thread.objects.create(
-            name=thread_name,
-            created_by=anonymous_user,  # Anonymous user owns the thread
-            assistant_id=assistant_id
-        )
-
-        # Create website session
-        website_session = WebsiteSession.objects.create(
-            session_id=uuid.uuid4(),
-            thread=thread,
-            company=company,
-            visitor_ip=visitor_ip,
-            user_agent=data.get('user_agent', ''),
-            referrer_url=data.get('referrer_url', ''),
-            visitor_metadata=data.get('visitor_metadata', {})
-        )
+        # Create website thread and session using helper function
+        with transaction.atomic():
+            thread, website_session = create_website_thread(
+                company=company,
+                visitor_ip=visitor_ip,
+                user_agent=data.get('user_agent', ''),
+                referrer_url=data.get('referrer_url', ''),
+                visitor_metadata=data.get('visitor_metadata', {})
+            )
 
         logger.info(f"Created website session {website_session.session_id} for {company.name}")
 
@@ -167,14 +148,13 @@ def session_create_api(request, company_slug):
             "session_id": str(website_session.session_id),
             "company_name": company.name,
             "assistant_id": thread.assistant_id,
-            "welcome_message": company.get_widget_welcome_message(),
-            "theme_config": company.get_widget_theme_config()
+            "welcome_message": widget_config.welcome_message,
+            "theme_config": widget_config.get_theme_config(),
+            "rate_limit": widget_config.rate_limit_per_minute,
+            "max_message_length": widget_config.max_message_length
         })
 
         return add_cors_headers(response, request.META.get('HTTP_ORIGIN'))
-
-    except Company.DoesNotExist:
-        return JsonResponse({"error": f"Company '{company_slug}' not found"}, status=404)
     except json.JSONDecodeError:
         return JsonResponse({"error": "Invalid JSON data"}, status=400)
     except Exception as e:

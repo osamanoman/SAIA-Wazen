@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: saia-wazen
+  labels:
+    name: saia-wazen
+    environment: production

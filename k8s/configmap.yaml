@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: saia-config
+  namespace: saia-wazen
+data:
+  DEBUG: "False"
+  DJANGO_SETTINGS_MODULE: "saia.settings_production"
+  DB_ENGINE: "django.db.backends.postgresql"
+  DB_NAME: "saia_production_db"
+  DB_HOST: "saia-postgres-service"
+  DB_PORT: "5432"
+  CLIENT_DB_ENGINE: "django.db.backends.mysql"
+  CLIENT_DB_NAME: "wazen_production_db"
+  CLIENT_DB_HOST: "wazen-mysql-service"
+  CLIENT_DB_PORT: "3306"
+  REDIS_URL: "redis://saia-redis-service:6379/0"
+  WIDGET_RATE_LIMITING_ENABLED: "True"
+  LOG_LEVEL: "INFO"
+  SECURE_SSL_REDIRECT: "True"
+  SESSION_COOKIE_SECURE: "True"
+  CSRF_COOKIE_SECURE: "True"

@@ -10,6 +10,8 @@ import logging
 import re
 from datetime import timedelta
 from django.utils import timezone
+from django.core.cache import cache
+from django.conf import settings
 from django_ai_assistant import AIAssistant, method_tool
 
 from saia.base_ai_assistant import SAIAAIAssistantMixin
@@ -28,6 +30,20 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
 
     id = "wazen_ai_assistant"
     name = "Wazen Business Assistant"
+
+    # Consolidated service keywords for better maintainability
+    SERVICE_KEYWORDS = {
+        'comprehensive': [
+            'شامل', 'تامين شامل', 'تأمين شامل', 'التأمين الشامل', 'التامين الشامل',
+            'اشترك تامين شامل', 'ابغى تامين شامل', 'اريد تامين شامل', 'تامين كامل',
+            'comprehensive', 'full coverage', 'شامل لسيارتي', 'تامين شامل للسيارة'
+        ],
+        'third_party': [
+            'ضد الغير', 'تامين ضد الغير', 'تأمين ضد الغير', 'المركبات ضد الغير',
+            'تأمين المركبات ضد الغير', 'تامين المركبات ضد الغير', 'third party',
+            'liability', 'الزامي', 'إلزامي'
+        ]
+    }
     instructions = """
 🏢 **مساعد وازن الذكي**
 
@@ -114,6 +130,116 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
         if not self._verify_wazen_user():
             logger.warning("User verification failed - this should only be used by Wazen company users")
 
+    # ==================== HELPER METHODS FOR COMPLEXITY REDUCTION ====================
+
+    def _get_cache_stats(self):
+        """Get cache statistics for monitoring (production health check)"""
+        try:
+            # Get current user for company context
+            user, error = self._validate_user()
+            if error:
+                return {"error": "No valid user context"}
+
+            cache_key = f'wazen_orderable_services_{user.company.id}'
+            cached_data = cache.get(cache_key)
+
+            return {
+                "cache_key": cache_key,
+                "cache_hit": cached_data is not None,
+                "cached_services_count": cached_data.count() if cached_data else 0,
+                "cache_backend": settings.CACHES.get('default', {}).get('BACKEND', 'unknown')
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
+    def _validate_user(self):
+        """Validate user and return user object or error response tuple"""
+        user = getattr(self, '_user', None)
+        if not user or not user.company:
+            error = self._error_response("معلومات المستخدم غير متاحة")
+            return None, error
+        return user, None
+
+    def _error_response(self, message: str, error: str = None) -> str:
+        """Standardized error response format"""
+        response_data = {
+            "status": "error",
+            "message": message,
+            "company": "Wazen"
+        }
+        if error:
+            response_data["error"] = error
+        return json.dumps(response_data, ensure_ascii=False)
+
+    def _success_response(self, data: dict) -> str:
+        """Standardized success response format"""
+        return json.dumps({
+            "status": "success",
+            "company": "Wazen",
+            **data
+        }, ensure_ascii=False)
+
+    def _get_orderable_services(self, user):
+        """
+        Get orderable services for user's company (production-ready caching)
+
+        Uses Django's cache framework for thread-safe, auto-expiring cache.
+        Falls back gracefully if caching fails.
+        """
+        # Production-ready cache key with company isolation
+        cache_key = f'wazen_orderable_services_{user.company.id}'
+
+        try:
+            # Try to get from Django cache first (thread-safe, auto-expiring)
+            cached_services = cache.get(cache_key)
+            if cached_services is not None:
+                logger.debug(f"Cache hit for orderable services (company: {user.company.id})")
+                return cached_services
+
+            # Cache miss - fetch from database
+            logger.debug(f"Cache miss for orderable services (company: {user.company.id})")
+            services = Product.objects.filter(
+                company=user.company,
+                type='service',
+                is_service_orderable=True
+            ).select_related('company').order_by('name')
+
+            # Cache for 5 minutes (production-safe timeout)
+            cache.set(cache_key, services, timeout=300)
+            logger.debug(f"Cached {services.count()} orderable services for company {user.company.id}")
+
+            return services
+
+        except Exception as e:
+            # Graceful fallback if caching fails
+            logger.warning(f"Cache operation failed for orderable services: {e}")
+            return Product.objects.filter(
+                company=user.company,
+                type='service',
+                is_service_orderable=True
+            ).select_related('company').order_by('name')
+
+    def _invalidate_services_cache(self, company_id):
+        """
+        Invalidate the orderable services cache for a company.
+        Call this when services are added/updated/deleted.
+        """
+        cache_key = f'wazen_orderable_services_{company_id}'
+        try:
+            cache.delete(cache_key)
+            logger.debug(f"Invalidated orderable services cache for company {company_id}")
+        except Exception as e:
+            logger.warning(f"Failed to invalidate services cache: {e}")
+
+    def _match_service_keywords(self, service_name: str):
+        """Simple keyword matching helper"""
+        service_name_lower = service_name.lower().strip()
+
+        for service_type, keywords in self.SERVICE_KEYWORDS.items():
+            if any(keyword in service_name_lower for keyword in keywords):
+                return service_type
+        return None
+
     @property
     def knowledge_service(self):
         """Lazy initialization of knowledge service with current user context"""
@@ -147,25 +273,18 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
             ORDER BY created_at DESC
             LIMIT %s
             """
-            
+
             results = self.client_service.execute_safe_query(query, [limit])
-            
-            return json.dumps({
-                "status": "success",
-                "company": "Wazen",
+
+            return self._success_response({
                 "invoices": results,
                 "count": len(results),
                 "message": f"Retrieved {len(results)} Wazen invoices"
-            }, default=str)
-            
+            })
+
         except Exception as e:
             logger.error(f"Failed to get Wazen invoices: {e}")
-            return json.dumps({
-                "status": "error",
-                "company": "Wazen",
-                "error": str(e),
-                "message": "Failed to retrieve Wazen invoices"
-            })
+            return self._error_response("Failed to retrieve Wazen invoices", str(e))
 
     @method_tool
     def get_wazen_clients(self, limit: int = 15) -> str:
@@ -358,14 +477,11 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
     def _validate_service_exists(self, service_name: str) -> bool:
         """Check if a service exists in our database"""
         try:
-            user = getattr(self, '_user', None)
-            if not user or not user.company:
+            user, error = self._validate_user()
+            if error:
                 return False
 
-            return Product.objects.filter(
-                company=user.company,
-                type='service',
-                is_service_orderable=True,
+            return self._get_orderable_services(user).filter(
                 name__icontains=service_name
             ).exists()
         except Exception:
@@ -592,8 +708,8 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
 
     def _get_or_create_cache(self, session_key=None):
         """Get or create a cache entry for the current session"""
-        user = getattr(self, '_user', None)
-        if not user or not user.company:
+        user, error = self._validate_user()
+        if error:
             return None
 
         if not session_key:
@@ -638,16 +754,12 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
     def get_available_services(self) -> str:
         """Get list of available services that can be ordered through the AI assistant."""
         try:
-            user = getattr(self, '_user', None)
-            if not user or not user.company:
-                return "❌ خطأ: معلومات المستخدم غير متاحة"
+            user, error = self._validate_user()
+            if error:
+                return error
 
-            # Get orderable services for Wazen company
-            services = Product.objects.filter(
-                company=user.company,
-                type='service',
-                is_service_orderable=True
-            ).order_by('name')
+            # Get orderable services using helper method
+            services = self._get_orderable_services(user)
 
             if not services.exists():
                 return "❌ لا توجد خدمات متاحة للطلب حالياً"
@@ -668,69 +780,31 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
 
         except Exception as e:
             logger.error(f"Failed to get available services: {e}")
-            return f"❌ خطأ في استرجاع الخدمات: {str(e)}"
+            return self._error_response("خطأ في استرجاع الخدمات", str(e))
 
     @method_tool
     def select_service_by_name(self, service_name: str) -> str:
         """Select a service by name and initiate the data collection process."""
         try:
-            user = getattr(self, '_user', None)
-            if not user or not user.company:
-                return "❌ خطأ: معلومات المستخدم غير متاحة"
+            user, error = self._validate_user()
+            if error:
+                return error
 
             # Find service by name (case-insensitive, partial match)
-            service = Product.objects.filter(
-                company=user.company,
-                type='service',
-                is_service_orderable=True,
-                name__icontains=service_name
-            ).first()
+            services = self._get_orderable_services(user)
+            service = services.filter(name__icontains=service_name).first()
 
             if not service:
-                # Try comprehensive alternative names for common services
-                service_name_lower = service_name.lower().strip()
+                # Try keyword matching using helper method
+                service_type = self._match_service_keywords(service_name)
 
-                # Comprehensive insurance variations
-                comprehensive_keywords = [
-                    'شامل', 'تامين شامل', 'تأمين شامل', 'التأمين الشامل', 'التامين الشامل',
-                    'اشترك تامين شامل', 'ابغى تامين شامل', 'اريد تامين شامل', 'تامين كامل',
-                    'comprehensive', 'full coverage', 'شامل لسيارتي', 'تامين شامل للسيارة'
-                ]
-
-                # Third party insurance variations
-                third_party_keywords = [
-                    'ضد الغير', 'تامين ضد الغير', 'تأمين ضد الغير', 'المركبات ضد الغير',
-                    'تأمين المركبات ضد الغير', 'تامين المركبات ضد الغير', 'third party',
-                    'liability', 'الزامي', 'إلزامي'
-                ]
-
-                # Check for comprehensive insurance
-                if any(keyword in service_name_lower for keyword in comprehensive_keywords):
-                    service = Product.objects.filter(
-                        company=user.company,
-                        type='service',
-                        is_service_orderable=True,
-                        name__icontains='شامل'
-                    ).first()
-
-                # Check for third party insurance
-                elif any(keyword in service_name_lower for keyword in third_party_keywords):
-                    service = Product.objects.filter(
-                        company=user.company,
-                        type='service',
-                        is_service_orderable=True,
-                        name__icontains='ضد الغير'
-                    ).first()
-
-                # General insurance keywords
-                elif any(keyword in service_name_lower for keyword in ['تامين', 'تأمين', 'insurance']):
-                    # If just "تامين" or "تأمين", default to comprehensive
-                    service = Product.objects.filter(
-                        company=user.company,
-                        type='service',
-                        is_service_orderable=True,
-                        name__icontains='شامل'
-                    ).first()
+                if service_type == 'comprehensive':
+                    service = services.filter(name__icontains='شامل').first()
+                elif service_type == 'third_party':
+                    service = services.filter(name__icontains='ضد الغير').first()
+                elif any(keyword in service_name.lower() for keyword in ['تامين', 'تأمين', 'insurance']):
+                    # Default to comprehensive for general insurance terms
+                    service = services.filter(name__icontains='شامل').first()
 
             if not service:
                 return f"""ما أقدر ألقى خدمة "{service_name}".
@@ -746,32 +820,21 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
 
         except Exception as e:
             logger.error(f"Failed to select service by name: {e}")
-            return f"❌ خطأ في اختيار الخدمة: {str(e)}"
+            return self._error_response("خطأ في اختيار الخدمة", str(e))
 
     @method_tool
     def select_service_for_order(self, service_id: str) -> str:
         """Select a service and initiate the data collection process."""
         try:
-            user = getattr(self, '_user', None)
-            if not user or not user.company:
-                return json.dumps({
-                    "status": "error",
-                    "message": "User company information not available"
-                })
+            user, error = self._validate_user()
+            if error:
+                return error
 
             # Validate service exists and is orderable
             try:
-                service = Product.objects.get(
-                    id=service_id,
-                    company=user.company,
-                    type='service',
-                    is_service_orderable=True
-                )
+                service = self._get_orderable_services(user).get(id=service_id)
             except Product.DoesNotExist:
-                return json.dumps({
-                    "status": "error",
-                    "message": f"Service with ID {service_id} not found or not orderable"
-                })
+                return self._error_response(f"Service with ID {service_id} not found or not orderable")
 
             # Create or update cache entry
             cache_entry = self._get_or_create_cache()
@@ -818,36 +881,24 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
     def collect_customer_name(self, customer_name: str) -> str:
         """Collect and validate customer name."""
         try:
-            user = getattr(self, '_user', None)
-            if not user or not user.company:
-                return json.dumps({
-                    "status": "error",
-                    "message": "User company information not available"
-                })
+            user, error = self._validate_user()
+            if error:
+                return error
 
             # Validate name format
             if not customer_name or len(customer_name.strip()) < 2:
-                return json.dumps({
-                    "status": "error",
-                    "message": "اكتب الاسم كامل (على الأقل حرفين)"
-                }, ensure_ascii=False)
+                return self._error_response("اكتب الاسم كامل (على الأقل حرفين)")
 
             # Clean name - accept any name with letters and spaces
             clean_name = customer_name.strip()
             # Only reject if completely empty or too short
             if len(clean_name) < 2:
-                return json.dumps({
-                    "status": "error",
-                    "message": "اكتب الاسم كامل"
-                }, ensure_ascii=False)
+                return self._error_response("اكتب الاسم كامل")
 
             # Validate full name (must have at least 2 words)
             name_parts = clean_name.split()
             if len(name_parts) < 2:
-                return json.dumps({
-                    "status": "error",
-                    "message": "اكتب الاسم كامل (الاسم الأول والعائلة على الأقل)"
-                }, ensure_ascii=False)
+                return self._error_response("اكتب الاسم كامل (الاسم الأول والعائلة على الأقل)")
 
             # Get current cache entry using helper method
             cache_entry, error_response = self._get_cache_or_error()
@@ -885,12 +936,9 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
     def collect_customer_age(self, customer_age: str) -> str:
         """Collect and validate customer age."""
         try:
-            user = getattr(self, '_user', None)
-            if not user or not user.company:
-                return json.dumps({
-                    "status": "error",
-                    "message": "User company information not available"
-                })
+            user, error = self._validate_user()
+            if error:
+                return error
 
             # Validate and convert age
             try:
@@ -942,12 +990,9 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
     def collect_customer_id(self, customer_id: str) -> str:
         """Collect and validate customer ID."""
         try:
-            user = getattr(self, '_user', None)
-            if not user or not user.company:
-                return json.dumps({
-                    "status": "error",
-                    "message": "User company information not available"
-                })
+            user, error = self._validate_user()
+            if error:
+                return error
 
             # Validate ID format - must be exactly 10 digits
             clean_id = customer_id.strip()

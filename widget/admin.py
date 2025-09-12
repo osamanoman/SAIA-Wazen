@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
-from .models import WebsiteSession, SessionHandover
+from .models import WebsiteSession, SessionHandover, ThreadExtension, WidgetConfiguration
 
 
 @admin.register(WebsiteSession)
@@ -136,3 +136,124 @@ class SessionHandoverAdmin(admin.ModelAdmin):
         return super().get_queryset(request).select_related(
             'session', 'session__company', 'assigned_agent'
         )
+
+
+@admin.register(ThreadExtension)
+class ThreadExtensionAdmin(admin.ModelAdmin):
+    """Admin interface for ThreadExtension model"""
+
+    list_display = [
+        'thread_name',
+        'session_type',
+        'is_anonymous',
+        'created_at',
+        'get_company'
+    ]
+
+    list_filter = [
+        'session_type',
+        'is_anonymous',
+        'created_at'
+    ]
+
+    search_fields = [
+        'thread__name',
+        'visitor_metadata'
+    ]
+
+    readonly_fields = [
+        'thread',
+        'created_at',
+        'updated_at'
+    ]
+
+    def thread_name(self, obj):
+        """Get thread name with link"""
+        if obj.thread:
+            url = reverse('admin:django_ai_assistant_thread_change', args=[obj.thread.id])
+            return format_html('<a href="{}">{}</a>', url, obj.thread.name)
+        return "No Thread"
+    thread_name.short_description = "Thread"
+
+    def get_company(self, obj):
+        """Get company from related session"""
+        try:
+            if hasattr(obj.thread, 'website_session'):
+                return obj.thread.website_session.company.name
+            return "N/A"
+        except:
+            return "N/A"
+    get_company.short_description = "Company"
+
+
+@admin.register(WidgetConfiguration)
+class WidgetConfigurationAdmin(admin.ModelAdmin):
+    """Admin interface for WidgetConfiguration model"""
+
+    list_display = [
+        'company',
+        'is_active',
+        'position',
+        'auto_open',
+        'rate_limit_per_minute',
+        'updated_at'
+    ]
+
+    list_filter = [
+        'is_active',
+        'position',
+        'auto_open',
+        'created_at'
+    ]
+
+    search_fields = [
+        'company__name',
+        'welcome_message'
+    ]
+
+    readonly_fields = [
+        'created_at',
+        'updated_at',
+        'theme_config_display',
+        'embed_code_display'
+    ]
+
+    fieldsets = (
+        ('Basic Configuration', {
+            'fields': ('company', 'is_active', 'welcome_message')
+        }),
+        ('Appearance', {
+            'fields': ('position', 'auto_open', 'auto_open_delay', 'theme_config_display'),
+            'classes': ('collapse',)
+        }),
+        ('Security & Limits', {
+            'fields': ('rate_limit_per_minute', 'max_message_length', 'max_file_size_mb'),
+            'classes': ('collapse',)
+        }),
+        ('File Upload', {
+            'fields': ('allowed_file_types',),
+            'classes': ('collapse',)
+        }),
+        ('Integration', {
+            'fields': ('embed_code_display',),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+
+    def theme_config_display(self, obj):
+        """Display theme configuration in a readable format"""
+        if obj.theme_config:
+            import json
+            return format_html('<pre>{}</pre>', json.dumps(obj.theme_config, indent=2))
+        return "Default theme"
+    theme_config_display.short_description = "Theme Configuration"
+
+    def embed_code_display(self, obj):
+        """Display embed code"""
+        embed_code = obj.generate_embed_code()
+        return format_html('<textarea rows="10" cols="80" readonly>{}</textarea>', embed_code)
+    embed_code_display.short_description = "Embed Code"

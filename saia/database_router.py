@@ -28,6 +28,7 @@ class SAIADatabaseRouter:
         'company',
         'invoice',
         'project',
+        'widget',  # Multi-tenant chatbot widget app
     }
     
     # Client data source database

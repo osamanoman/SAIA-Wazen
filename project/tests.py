@@ -18,7 +18,7 @@ from django.core.cache import cache
 from django.contrib.auth import get_user_model
 
 from company.models import Company
-from project.models import WebsiteSession, SessionHandover
+from widget.models import WebsiteSession, SessionHandover, ThreadExtension
 from django_ai_assistant.models import Thread
 
 User = get_user_model()

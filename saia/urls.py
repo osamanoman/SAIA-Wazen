@@ -20,7 +20,7 @@ from django.urls import path, include
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('assistant/', include('project.urls')),
-    path('api/widget/', include('widget.urls')),  # Widget API endpoints
+    path('api/widget/', include('widget.urls')),  # Multi-tenant chatbot widget API
     path('', include('project.urls')),  # Include project URLs at root
 
 ]

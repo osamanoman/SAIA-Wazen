@@ -103,7 +103,7 @@ INSTALLED_APPS = [
     'project',
     'company',
     'invoice',
-    'widget',  # Chatbot widget app
+    'widget',  # Multi-tenant website chatbot app
 
 ]
 

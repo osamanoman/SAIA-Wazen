@@ -9,7 +9,6 @@ import json
 import logging
 import re
 from datetime import timedelta
-from functools import lru_cache
 from django.utils import timezone
 from django_ai_assistant import AIAssistant, method_tool
 
@@ -601,23 +600,28 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
             session_key = self._get_session_key()
 
         try:
-            # Use atomic get_or_create to prevent race conditions
-            expires_at = timezone.now() + timedelta(minutes=30)  # 30 minute timeout
-
-            # Clean up any expired cache entries for this user first
+            # Clean up expired cache entries first
             ServiceOrderCache.objects.filter(
                 user=user,
                 company=user.company,
                 expires_at__lte=timezone.now()
             ).delete()
 
-            # Try to get existing non-expired cache, or create new one atomically
-            cache_entry, created = ServiceOrderCache.objects.get_or_create(
+            # Try to get existing non-expired cache
+            existing_cache = ServiceOrderCache.objects.filter(
                 user=user,
                 company=user.company,
-                expires_at__gt=timezone.now(),
+                expires_at__gt=timezone.now()
+            ).first()
+
+            if existing_cache:
+                return existing_cache
+
+            # No existing cache found, create new one atomically
+            expires_at = timezone.now() + timedelta(minutes=30)
+            cache_entry, created = ServiceOrderCache.objects.get_or_create(
+                session_key=session_key,
                 defaults={
-                    'session_key': session_key,
                     'user': user,
                     'company': user.company,
                     'expires_at': expires_at,

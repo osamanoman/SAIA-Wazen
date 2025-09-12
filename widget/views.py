@@ -9,6 +9,7 @@ from django.views.decorators.http import require_http_methods
 from django.utils import timezone
 from django.db import transaction
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 
 User = get_user_model()
 from django.core.files.storage import default_storage
@@ -36,6 +37,11 @@ def widget_config_api(request, company_slug):
     This endpoint is called when the widget loads on a website.
     """
     try:
+        # Check cache first
+        cache_key = f"widget_config_{company_slug}"
+        cached_config = cache.get(cache_key)
+        if cached_config:
+            return JsonResponse(cached_config)
         # Validate company slug format
         if not company_slug.replace('-', '').replace('_', '').isalnum():
             return JsonResponse({
@@ -58,6 +64,9 @@ def widget_config_api(request, company_slug):
             "position": company.widget_position or "bottom-right",
             "is_active": company.widget_is_active
         }
+
+        # Cache the config for 5 minutes to reduce database hits
+        cache.set(cache_key, response_data, 300)
 
         response = JsonResponse(response_data)
         return add_cors_headers(response, request.META.get('HTTP_ORIGIN'))

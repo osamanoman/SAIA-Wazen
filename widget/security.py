@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Rate limiting configuration
 RATE_LIMITS = {
-    'widget_config': {'requests': 1000, 'window': 3600},  # 1000 requests per hour (increased for testing)
+    'widget_config': {'requests': 10000, 'window': 3600},  # 10000 requests per hour (increased for development)
     'session_create': {'requests': 100, 'window': 3600},   # 100 sessions per hour per IP (increased for testing)
     'message_send': {'requests': 600, 'window': 3600},     # 600 messages per hour per session (increased for testing)
     'handover_request': {'requests': 50, 'window': 3600},  # 50 handover requests per hour (increased for testing)

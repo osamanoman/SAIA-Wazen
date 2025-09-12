@@ -268,15 +268,50 @@ class SAIAWidget {
      */
     async loadCompanyConfig() {
         try {
+            // Check if config is already cached in memory
+            if (this.state.companyConfig) {
+                this.log('Using cached company configuration');
+                return;
+            }
+
+            // Check localStorage cache (5 minutes)
+            const cacheKey = `saia_widget_config_${this.config.companySlug}`;
+            const cachedData = localStorage.getItem(cacheKey);
+            if (cachedData) {
+                try {
+                    const parsed = JSON.parse(cachedData);
+                    const now = Date.now();
+                    // Cache for 5 minutes (300000 ms)
+                    if (parsed.timestamp && (now - parsed.timestamp) < 300000) {
+                        this.state.companyConfig = parsed.config;
+                        this.log('Using cached company configuration from localStorage');
+                        return;
+                    }
+                } catch (e) {
+                    // Invalid cache data, remove it
+                    localStorage.removeItem(cacheKey);
+                }
+            }
+
             const response = await fetch(`${this.config.apiBaseUrl}/api/widget/config/${this.config.companySlug}/`);
-            
+
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
-            
+
             this.state.companyConfig = await response.json();
             this.log('Company configuration loaded:', this.state.companyConfig);
-            
+
+            // Cache the config in localStorage
+            try {
+                localStorage.setItem(cacheKey, JSON.stringify({
+                    config: this.state.companyConfig,
+                    timestamp: Date.now()
+                }));
+            } catch (e) {
+                this.log('Failed to cache config in localStorage:', e);
+            }
+
         } catch (error) {
             throw new Error(`Failed to load company configuration: ${error.message}`);
         }

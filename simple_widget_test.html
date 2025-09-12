@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Widget Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        
+        .status {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            backdrop-filter: blur(10px);
+        }
+        
+        .success { border-left: 4px solid #10b981; }
+        .info { border-left: 4px solid #3b82f6; }
+        
+        .widget-indicator {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: rgba(255,255,255,0.2);
+            padding: 10px 20px;
+            border-radius: 25px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.3);
+            font-size: 14px;
+        }
+        
+        .arrow {
+            position: fixed;
+            bottom: 100px;
+            right: 50px;
+            font-size: 30px;
+            animation: bounce 2s infinite;
+        }
+        
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            60% { transform: translateY(-5px); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 SAIA Wazen Widget Test</h1>
+        <p>This page tests if the widget appears in the bottom-right corner</p>
+        
+        <div class="status success">
+            <h3>✅ Widget Loading Status</h3>
+            <p>Script URL: <code>http://127.0.0.1:8000/static/widget/js/saia-widget-loader.js</code></p>
+            <p>Company: <strong>wazen</strong></p>
+            <p>Position: <strong>bottom-right</strong></p>
+        </div>
+        
+        <div class="status info">
+            <h3>📋 What to Look For</h3>
+            <p>✅ A chat button/icon in the bottom-right corner</p>
+            <p>✅ The button should be clickable</p>
+            <p>✅ Clicking should open a chat window</p>
+            <p>✅ You should be able to type messages</p>
+        </div>
+        
+        <div class="status info">
+            <h3>🧪 Test Messages</h3>
+            <p><strong>Arabic Greeting:</strong> "السلام عليكم"</p>
+            <p><strong>Service Request:</strong> "أريد طلب خدمة التأمين الشامل"</p>
+            <p><strong>General Question:</strong> "ما هي خدمات وازن؟"</p>
+        </div>
+    </div>
+    
+    <div class="widget-indicator">
+        👆 Widget should appear here
+    </div>
+    
+    <div class="arrow">
+        ↘️
+    </div>
+
+    <!-- SAIA Widget Integration - Simple Version -->
+    <script src="http://127.0.0.1:8000/static/widget/js/saia-widget-loader.js" 
+            data-company="wazen" 
+            data-position="bottom-right"
+            data-theme="wazen-blue">
+    </script>
+
+    <script>
+        // Simple status check
+        setTimeout(() => {
+            console.log('🔍 Checking for widget elements...');
+            
+            // Look for any elements that might be the widget
+            const allElements = document.querySelectorAll('*');
+            let widgetFound = false;
+            
+            allElements.forEach(el => {
+                if (el.className && (
+                    el.className.includes('saia') || 
+                    el.className.includes('widget') ||
+                    el.className.includes('chat')
+                )) {
+                    console.log('✅ Found potential widget element:', el);
+                    widgetFound = true;
+                }
+            });
+            
+            if (!widgetFound) {
+                console.log('⚠️ No widget elements found yet. Widget might still be loading...');
+            }
+            
+            // Check if scripts loaded
+            if (window.SAIAWidget) {
+                console.log('✅ SAIAWidget class is available');
+            } else {
+                console.log('⚠️ SAIAWidget class not found');
+            }
+            
+            if (window.saia) {
+                console.log('✅ saia function is available');
+            } else {
+                console.log('⚠️ saia function not found');
+            }
+            
+        }, 3000);
+        
+        // Listen for widget events
+        window.addEventListener('saia-widget-ready', () => {
+            console.log('🎉 Widget is ready!');
+            alert('✅ Widget is ready! Look for the chat button in the bottom-right corner.');
+        });
+        
+        window.addEventListener('saia-widget-loaded', () => {
+            console.log('📦 Widget loaded!');
+        });
+    </script>
+</body>
+</html>

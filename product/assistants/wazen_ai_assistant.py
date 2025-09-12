@@ -302,18 +302,26 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
             # 2. SERVICE ORDER DETECTION - Context-aware
             service_keywords = ['طلب خدمة', 'أريد خدمة', 'احتاج خدمة', 'order service', 'need service', 'خدمة جديدة']
             if any(keyword in query_lower for keyword in service_keywords):
-                # Check if user mentioned a specific service name
-                if 'تأمين شامل' in query_lower or 'شامل' in query_lower:
+                # Check if user mentioned a specific service name with variations
+                if ('تأمين شامل' in query_lower or 'تامين شامل' in query_lower or
+                    'شامل' in query_lower):
                     return self.select_service_by_name('تأمين شامل')
-                elif 'ضد الغير' in query_lower or 'third party' in query_lower:
+                elif ('ضد الغير' in query_lower or 'third party' in query_lower):
                     return self.select_service_by_name('ضد الغير')
                 else:
                     return self._smart_service_initiation()
 
-            # 3. DIRECT SERVICE NAME DETECTION
-            if 'تأمين شامل' in query_lower or ('تأمين' in query_lower and 'شامل' in query_lower):
+            # 3. DIRECT SERVICE NAME DETECTION - Enhanced with Arabic variations
+            # Handle comprehensive insurance variations
+            if ('تأمين شامل' in query_lower or 'تامين شامل' in query_lower or
+                ('تأمين' in query_lower and 'شامل' in query_lower) or
+                ('تامين' in query_lower and 'شامل' in query_lower) or
+                'شامل' in query_lower):
                 return self.select_service_by_name('تأمين شامل')
-            elif 'ضد الغير' in query_lower or ('تأمين' in query_lower and 'ضد' in query_lower):
+            # Handle third party insurance variations
+            elif ('ضد الغير' in query_lower or
+                  ('تأمين' in query_lower and 'ضد' in query_lower) or
+                  ('تامين' in query_lower and 'ضد' in query_lower)):
                 return self.select_service_by_name('ضد الغير')
 
             # 4. KNOWLEDGE QUESTIONS - Enhanced search

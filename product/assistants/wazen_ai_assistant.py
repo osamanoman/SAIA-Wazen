@@ -841,7 +841,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
                 },
                 "missing_fields": missing_fields,
                 "next_step": self._determine_next_step(missing_fields),
-                "message": f"Name '{clean_name}' collected successfully. {len(missing_fields)} fields remaining."
+                "message": f"تم جمع اسمك بنجاح: {clean_name}. باقي {len(missing_fields)} معلومات."
             }, ensure_ascii=False)
 
         except Exception as e:
@@ -898,7 +898,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
                 },
                 "missing_fields": missing_fields,
                 "next_step": self._determine_next_step(missing_fields),
-                "message": f"Age {age} collected successfully. {len(missing_fields)} fields remaining."
+                "message": f"تم جمع عمرك بنجاح: {age} سنة. باقي {len(missing_fields)} معلومات."
             }, ensure_ascii=False)
 
         except Exception as e:
@@ -956,7 +956,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
                 },
                 "missing_fields": missing_fields,
                 "next_step": self._determine_next_step(missing_fields),
-                "message": f"ID '{clean_id}' collected successfully. {len(missing_fields)} fields remaining."
+                "message": f"تم جمع رقم هويتك بنجاح: {clean_id}. باقي {len(missing_fields)} معلومات."
             }, ensure_ascii=False)
 
         except Exception as e:
@@ -1227,8 +1227,8 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
                 },
                 "missing_fields": missing_fields,
                 "next_step": self._determine_next_step(missing_fields),
-                "message": f"Image information recorded. {len(missing_fields)} fields remaining.",
-                "note": "Please upload the actual image file through the web interface."
+                "message": f"تم تسجيل معلومات الصورة. باقي {len(missing_fields)} معلومات.",
+                "note": "ارفع الصورة الفعلية من خلال الموقع."
             }, ensure_ascii=False)
 
         except Exception as e:
@@ -1352,7 +1352,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
                 "confirmation_data": confirmation_data,
                 "session_key": cache_entry.session_key,
                 "next_step": "confirm_order",
-                "message": "All information collected successfully. Please review and confirm your order."
+                "message": "ممتاز! خلاص جمعنا كل المعلومات بنجاح. راجع طلبك وأكده."
             }, ensure_ascii=False)
 
         except Exception as e:

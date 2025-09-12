@@ -407,9 +407,28 @@ def file_upload_api(request, session_id):
                     user=anonymous_user,
                     thread=website_session.thread
                 )
-                # Mark image as uploaded in the service order cache
-                assistant_instance.mark_image_uploaded("file_uploaded_via_widget")
-                logger.info(f"Triggered AI assistant image processing for session {session_id}")
+                # Try to mark image as uploaded in the service order cache
+                result = assistant_instance.mark_image_uploaded("file_uploaded_via_widget")
+
+                # Check if there was an error (no active service order)
+                import json
+                try:
+                    result_data = json.loads(result)
+                    if result_data.get('status') == 'error':
+                        # No active service order - send a follow-up message to guide user
+                        follow_up_message = "تم رفع الصورة بنجاح! لإكمال طلب الخدمة، يرجى إخباري بنوع الخدمة التي تريد طلبها."
+                        create_message(
+                            assistant_id=website_session.thread.assistant_id,
+                            thread=website_session.thread,
+                            user=anonymous_user,
+                            content=follow_up_message,
+                            request=request
+                        )
+                        logger.info(f"Sent follow-up message for file upload without active order: {session_id}")
+                    else:
+                        logger.info(f"Successfully triggered AI assistant image processing for session {session_id}")
+                except json.JSONDecodeError:
+                    logger.warning(f"Could not parse AI assistant response: {result}")
         except Exception as e:
             logger.warning(f"Could not trigger AI assistant image processing: {e}")
 

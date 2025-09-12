@@ -386,8 +386,8 @@ def file_upload_api(request, session_id):
         # Send notification message to AI assistant about the upload
         anonymous_user = website_session.thread.created_by
 
-        # Create a system message about the file upload
-        upload_message = f"📎 تم رفع ملف: {uploaded_file.name} ({uploaded_file.content_type}, {uploaded_file.size} bytes)"
+        # Create a user message confirming the image upload
+        upload_message = f"تم رفع الصورة الشخصية بنجاح: {uploaded_file.name}"
 
         ai_response = create_message(
             assistant_id=website_session.thread.assistant_id,
@@ -396,6 +396,22 @@ def file_upload_api(request, session_id):
             content=upload_message,
             request=request
         )
+
+        # Also try to directly trigger the AI assistant's image processing
+        try:
+            from product.assistants import COMPANY_ASSISTANTS
+            assistant_class = COMPANY_ASSISTANTS.get(website_session.thread.assistant_id)
+            if assistant_class:
+                # Create assistant instance
+                assistant_instance = assistant_class(
+                    user=anonymous_user,
+                    thread=website_session.thread
+                )
+                # Mark image as uploaded in the service order cache
+                assistant_instance.mark_image_uploaded("file_uploaded_via_widget")
+                logger.info(f"Triggered AI assistant image processing for session {session_id}")
+        except Exception as e:
+            logger.warning(f"Could not trigger AI assistant image processing: {e}")
 
         logger.info(f"File uploaded to session {session_id}: {uploaded_file.name}")
 

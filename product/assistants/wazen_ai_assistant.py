@@ -767,7 +767,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
                 },
                 "session_key": cache_entry.session_key,
                 "next_step": "collect_customer_information",
-                "message": f"Service '{service.name}' selected. Now I need to collect your information."
+                "message": f"تم اختيار خدمة '{service.name}' بنجاح! 🎉\n\nالحين أحتاج أجمع معلوماتك الشخصية عشان نكمل الطلب:\n\n📝 **المعلومات المطلوبة:**\n• الاسم الكامل\n• العمر\n• رقم الهوية\n• رقم الجوال\n• الصورة الشخصية\n\nتكفى ابدأ بإعطائي اسمك الكامل."
             }, ensure_ascii=False)
 
         except Exception as e:

@@ -236,6 +236,7 @@
                 <p>✅ API Connection: <span id="api-status">Testing...</span></p>
                 <p>✅ Arabic Support: <span id="arabic-status">Ready</span></p>
                 <p>✅ Mobile Ready: <span id="mobile-status">Ready</span></p>
+                <p>📊 API Response: <span id="api-details">Checking...</span></p>
             </div>
         </div>
     </div>
@@ -290,15 +291,25 @@
         // Test API connection
         async function testAPIConnection() {
             const apiStatus = document.getElementById('api-status');
+            const apiDetails = document.getElementById('api-details');
             try {
                 const response = await fetch('http://127.0.0.1:8000/api/widget/config/wazen/');
                 if (response.ok) {
-                    apiStatus.textContent = 'Connected ✅';
+                    const data = await response.json();
+                    if (data.company_name && data.assistant_id) {
+                        apiStatus.textContent = `Connected ✅ (${data.company_name})`;
+                        apiDetails.textContent = `Assistant: ${data.assistant_id}, Theme: ${data.theme_config?.primary_color || 'default'}`;
+                    } else {
+                        apiStatus.textContent = 'Connected ✅ (Invalid Response)';
+                        apiDetails.textContent = 'Response missing required fields';
+                    }
                 } else {
-                    apiStatus.textContent = 'Error ❌';
+                    apiStatus.textContent = `Error ❌ (${response.status})`;
+                    apiDetails.textContent = `HTTP ${response.status}: ${response.statusText}`;
                 }
             } catch (error) {
-                apiStatus.textContent = 'Failed ❌';
+                apiStatus.textContent = `Failed ❌ (${error.message})`;
+                apiDetails.textContent = `Network error: ${error.message}`;
             }
         }
         

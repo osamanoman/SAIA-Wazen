@@ -318,18 +318,9 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
                 else:
                     return self._smart_service_initiation()
 
-            # 3. DIRECT SERVICE NAME DETECTION - Enhanced with Arabic variations
-            # Handle comprehensive insurance variations
-            if ('تأمين شامل' in query_lower or 'تامين شامل' in query_lower or
-                ('تأمين' in query_lower and 'شامل' in query_lower) or
-                ('تامين' in query_lower and 'شامل' in query_lower) or
-                'شامل' in query_lower):
-                return self.select_service_by_name('تأمين شامل')
-            # Handle third party insurance variations
-            elif ('ضد الغير' in query_lower or
-                  ('تأمين' in query_lower and 'ضد' in query_lower) or
-                  ('تامين' in query_lower and 'ضد' in query_lower)):
-                return self.select_service_by_name('ضد الغير')
+            # 3. DIRECT SERVICE NAME DETECTION - Use single method
+            if any(keyword in query_lower for keyword in ['تأمين', 'تامين', 'شامل', 'ضد الغير', 'insurance']):
+                return self.select_service_by_name(user_query)
 
             # 4. KNOWLEDGE QUESTIONS - Enhanced search
             return self._smart_knowledge_search(user_query)
@@ -576,7 +567,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
         if not cache_entry:
             error_response = json.dumps({
                 "status": "error",
-                "message": "No active service order session. Please select a service first."
+                "message": "لا يوجد طلب خدمة نشط. ابدأ بطلب خدمة جديدة."
             })
             return None, error_response
         return cache_entry, None
@@ -739,7 +730,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
 
 {self.get_available_services()}
 
-تكفى اختار وحدة من الخدمات المتاحة فوق."""
+اختار وحدة من الخدمات المتاحة فوق."""
 
             # Use the existing select_service_for_order method
             return self.select_service_for_order(str(service.id))
@@ -802,7 +793,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
                 },
                 "session_key": cache_entry.session_key,
                 "next_step": "collect_customer_information",
-                "message": f"تم اختيار خدمة '{service.name}' بنجاح! 🎉\n\nالحين أحتاج أجمع معلوماتك الشخصية عشان نكمل الطلب:\n\n📝 **المعلومات المطلوبة:**\n• الاسم الكامل\n• العمر\n• رقم الهوية\n• رقم الجوال\n• الصورة الشخصية\n\nتكفى ابدأ بإعطائي اسمك الكامل."
+                "message": f"تم اختيار خدمة '{service.name}' بنجاح! 🎉\n\nالحين أحتاج أجمع معلوماتك الشخصية عشان نكمل الطلب:\n\n📝 **المعلومات المطلوبة:**\n• الاسم الكامل\n• العمر\n• رقم الهوية\n• رقم الجوال\n• الصورة الشخصية\n\nابدأ بإعطائي اسمك الكامل."
             }, ensure_ascii=False)
 
         except Exception as e:
@@ -829,7 +820,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
             if not customer_name or len(customer_name.strip()) < 2:
                 return json.dumps({
                     "status": "error",
-                    "message": "تكفى اكتب الاسم كامل (على الأقل حرفين)"
+                    "message": "اكتب الاسم كامل (على الأقل حرفين)"
                 }, ensure_ascii=False)
 
             # Clean name - accept any name with letters and spaces
@@ -846,7 +837,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
             if len(name_parts) < 2:
                 return json.dumps({
                     "status": "error",
-                    "message": "تكفى اكتب الاسم كامل (الاسم الأول والعائلة على الأقل)"
+                    "message": "اكتب الاسم كامل (الاسم الأول والعائلة على الأقل)"
                 }, ensure_ascii=False)
 
             # Get current cache entry using helper method
@@ -954,7 +945,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
             if not clean_id:
                 return json.dumps({
                     "status": "error",
-                    "message": "تكفى اكتب رقم الهوية"
+                    "message": "اكتب رقم الهوية"
                 }, ensure_ascii=False)
 
             # Must be exactly 10 digits
@@ -1054,9 +1045,9 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
                     },
                     "missing_fields": missing_fields,
                     "next_step": "collect_image",
-                    "message": f"رقم الجوال '{clean_phone}' تم حفظه بنجاح. ✅ خلاص جمعنا كل المعلومات الأساسية!\n\n📸 الحين نحتاج صورتك الشخصية عشان نكمل الطلب. تكفى اضغط على زر الكاميرا 📸 عشان ترفع صورتك.",
+                    "message": f"رقم الجوال '{clean_phone}' تم حفظه بنجاح. ✅ خلاص جمعنا كل المعلومات الأساسية!\n\n📸 الحين نحتاج صورتك الشخصية عشان نكمل الطلب. اضغط على زر الكاميرا 📸 عشان ترفع صورتك.",
                     "image_required": True,
-                    "action_needed": "تكفى ارفع صورتك الشخصية باستخدام زر الكاميرا 📸"
+                    "action_needed": "ارفع صورتك الشخصية باستخدام زر الكاميرا 📸"
                 }, ensure_ascii=False)
             else:
                 return json.dumps({
@@ -1183,7 +1174,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
                     "status": "pending",
                     "company": "Wazen",
                     "image_status": "not_uploaded",
-                    "message": "ما تم رفع الصورة الشخصية لسه. تكفى ارفع صورتك الشخصية أول شي.",
+                    "message": "ما تم رفع الصورة الشخصية لسه. ارفع صورتك الشخصية أول شي.",
                     "upload_url": "/upload-image/"  # This would be the actual upload endpoint
                 }, ensure_ascii=False)
 
@@ -1228,7 +1219,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
                 "company": "Wazen",
                 "message": "ممتاز! خلاص جمعنا كل المعلومات الأساسية. الحين نحتاج صورتك الشخصية.",
                 "instructions": [
-                    "📸 تكفى ارفع صورة شخصية واضحة",
+                    "📸 ارفع صورة شخصية واضحة",
                     "✅ تأكد إن الصورة تظهر وجهك بوضوح",
                     "📱 تقدر تستخدم الكاميرا أو تختار صورة من الجهاز",
                     "🔒 الصورة آمنة ومحمية وفقاً لسياسة الخصوصية"
@@ -1309,7 +1300,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
                         "status": "need_image",
                         "message": "خلاص جمعنا كل المعلومات الأساسية. الحين نحتاج صورتك الشخصية.",
                         "next_step": "collect_image",
-                        "action_required": "تكفى ارفع صورتك الشخصية عشان نكمل الطلب"
+                        "action_required": "ارفع صورتك الشخصية عشان نكمل الطلب"
                     }, ensure_ascii=False)
                 else:
                     return json.dumps({
@@ -1380,7 +1371,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
                 "confirmation_data": confirmation_data,
                 "session_key": cache_entry.session_key,
                 "next_step": "confirm_order",
-                "message": "ممتاز! خلاص جمعنا كل المعلومات بنجاح. راجع طلبك وأكده."Killer. Hello. Huh. Nalam. Internet. Just. 
+                "message": "ممتاز! خلاص جمعنا كل المعلومات بنجاح. راجع طلبك وأكده."
             }, ensure_ascii=False)
 
         except Exception as e:
@@ -1394,7 +1385,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
 
     @method_tool
     def confirm_service_order(self, confirmation: str) -> str:
-        """Confirm and submit the service order after user validation."""
+        """Confirm and submit the service order after user validation.""" 
         try:
             user = getattr(self, '_user', None)
             if not user or not user.company:
@@ -1441,7 +1432,7 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
             if not cached_data.get('image_verified') and not cached_data.get('image_uploaded'):
                 return json.dumps({
                     "status": "error",
-                    "message": "ما أقدر أأكد الطلب. تكفى ارفع الصورة الشخصية أول شي.",
+                    "message": "ما أقدر أأكد الطلب. ارفع الصورة الشخصية أول شي.",
                     "required_action": "upload_image"
                 }, ensure_ascii=False)
 

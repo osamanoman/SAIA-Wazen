@@ -806,10 +806,11 @@ class WazenAIAssistant(SAIAAIAssistantMixin, AIAssistant):
 
             # Clean and validate name
             clean_name = customer_name.strip()
-            if not re.match(r'^[a-zA-Z\u0600-\u06FF\s]+$', clean_name):
+            # Accept Arabic, English letters, and spaces - be very permissive
+            if not re.match(r'^[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\u0590-\u05FFa-zA-Z\s\u00C0-\u017F]+$', clean_name):
                 return json.dumps({
                     "status": "error",
-                    "message": "الاسم لازم يكون حروف ومسافات بس"
+                    "message": "اكتب الاسم بالحروف العربية أو الإنجليزية"
                 }, ensure_ascii=False)
 
             # Validate full name (must have at least 2 words)

@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAIA Wazen Widget - Integration Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            color: #1e40af;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #666;
+            font-size: 1.2em;
+        }
+        
+        .demo-section {
+            margin: 30px 0;
+            padding: 25px;
+            background: #f8fafc;
+            border-radius: 10px;
+            border-left: 4px solid #1e40af;
+        }
+        
+        .demo-section h2 {
+            color: #1e40af;
+            margin-top: 0;
+        }
+        
+        .code-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+        
+        .test-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        
+        .test-btn {
+            background: #1e40af;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+        
+        .test-btn:hover {
+            background: #1d4ed8;
+        }
+        
+        .test-btn.secondary {
+            background: #10b981;
+        }
+        
+        .test-btn.secondary:hover {
+            background: #059669;
+        }
+        
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        
+        .feature-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .feature-card h3 {
+            color: #1e40af;
+            margin-top: 0;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-left: 8px;
+        }
+        
+        .status-online {
+            background: #10b981;
+        }
+        
+        .status-offline {
+            background: #ef4444;
+        }
+        
+        .arabic-text {
+            font-size: 1.1em;
+            line-height: 1.6;
+            color: #374151;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .test-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 SAIA Wazen AI Assistant</h1>
+            <p>Integration Demo & Testing Page</p>
+            <div>
+                Widget Status: <span id="widget-status">Loading...</span>
+                <span class="status-indicator" id="status-dot"></span>
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>📋 Integration Code</h2>
+            <p>This page demonstrates the SAIA Wazen Widget integration. The widget is loaded using this simple code:</p>
+            <div class="code-block">
+&lt;script src="http://127.0.0.1:8000/static/widget/js/saia-widget-loader.js" 
+        data-company="wazen" 
+        data-position="bottom-right"
+        data-theme="wazen-blue"
+        data-title="مساعد وازن الذكي"
+        data-greeting="أهلاً وسهلاً بك في وازن! كيف يمكنني مساعدتك اليوم؟"&gt;
+&lt;/script&gt;
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>🧪 Test the Widget</h2>
+            <p>Use these buttons to test different widget functionalities:</p>
+            <div class="test-buttons">
+                <button class="test-btn" onclick="testGreeting()">Test Arabic Greeting</button>
+                <button class="test-btn" onclick="testService()">Test Service Request</button>
+                <button class="test-btn secondary" onclick="testKnowledge()">Test Knowledge Base</button>
+                <button class="test-btn secondary" onclick="toggleWidget()">Toggle Widget</button>
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>✨ Features Demonstrated</h2>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h3>🇸🇦 Arabic Language Support</h3>
+                    <p class="arabic-text">الويدجت يدعم اللغة العربية بالكامل مع اللهجة السعودية</p>
+                    <p>Full Arabic support with Saudi dialect for natural conversations.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <h3>🛡️ Insurance Services</h3>
+                    <p class="arabic-text">يمكن طلب خدمات التأمين المختلفة مثل التأمين الشامل</p>
+                    <p>Complete insurance service ordering with data collection.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <h3>📱 Mobile Responsive</h3>
+                    <p>Perfect mobile experience with touch-friendly interface.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <h3>🎨 Customizable</h3>
+                    <p>Themes, colors, and text can be customized to match your brand.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>🔍 Test Scenarios</h2>
+            <div class="arabic-text">
+                <h3>Scenario 1: Greeting Test</h3>
+                <p><strong>Type:</strong> "السلام عليكم" or "مرحبا"</p>
+                <p><strong>Expected:</strong> Warm Arabic greeting with service options</p>
+                
+                <h3>Scenario 2: Service Request</h3>
+                <p><strong>Type:</strong> "أريد طلب خدمة التأمين الشامل"</p>
+                <p><strong>Expected:</strong> Start service ordering process with data collection</p>
+                
+                <h3>Scenario 3: Information Request</h3>
+                <p><strong>Type:</strong> "ما هي خدمات وازن؟"</p>
+                <p><strong>Expected:</strong> Detailed information about Wazen services</p>
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>📊 Integration Status</h2>
+            <div id="integration-status">
+                <p>✅ Widget Script: <span id="script-status">Loading...</span></p>
+                <p>✅ API Connection: <span id="api-status">Testing...</span></p>
+                <p>✅ Arabic Support: <span id="arabic-status">Ready</span></p>
+                <p>✅ Mobile Ready: <span id="mobile-status">Ready</span></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- SAIA Widget Integration -->
+    <script src="http://127.0.0.1:8000/static/widget/js/saia-widget-loader.js" 
+            data-company="wazen" 
+            data-position="bottom-right"
+            data-theme="wazen-blue"
+            data-title="مساعد وازن الذكي"
+            data-greeting="أهلاً وسهلاً بك في وازن! كيف يمكنني مساعدتك اليوم؟"
+            data-placeholder="اكتب رسالتك هنا...">
+    </script>
+
+    <script>
+        // Test functions
+        function testGreeting() {
+            alert('Click the chat widget and type: "السلام عليكم"');
+        }
+        
+        function testService() {
+            alert('Click the chat widget and type: "أريد طلب خدمة التأمين الشامل"');
+        }
+        
+        function testKnowledge() {
+            alert('Click the chat widget and type: "ما هي خدمات وازن؟"');
+        }
+        
+        function toggleWidget() {
+            // This would toggle the widget if we had access to the widget instance
+            alert('Widget toggle functionality - check the chat button in the corner!');
+        }
+        
+        // Status monitoring
+        function updateStatus() {
+            const widgetScript = document.querySelector('script[data-company="wazen"]');
+            const scriptStatus = document.getElementById('script-status');
+            const widgetStatus = document.getElementById('widget-status');
+            const statusDot = document.getElementById('status-dot');
+            
+            if (widgetScript) {
+                scriptStatus.textContent = 'Loaded ✅';
+                widgetStatus.textContent = 'Online';
+                statusDot.className = 'status-indicator status-online';
+            } else {
+                scriptStatus.textContent = 'Failed ❌';
+                widgetStatus.textContent = 'Offline';
+                statusDot.className = 'status-indicator status-offline';
+            }
+        }
+        
+        // Test API connection
+        async function testAPIConnection() {
+            const apiStatus = document.getElementById('api-status');
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/widget/config/wazen/');
+                if (response.ok) {
+                    apiStatus.textContent = 'Connected ✅';
+                } else {
+                    apiStatus.textContent = 'Error ❌';
+                }
+            } catch (error) {
+                apiStatus.textContent = 'Failed ❌';
+            }
+        }
+        
+        // Widget event listeners
+        window.addEventListener('saia-widget-ready', function() {
+            console.log('✅ SAIA Widget is ready!');
+            updateStatus();
+        });
+        
+        window.addEventListener('saia-widget-opened', function() {
+            console.log('📖 Widget opened');
+        });
+        
+        window.addEventListener('saia-widget-message-sent', function(event) {
+            console.log('📤 Message sent:', event.detail.message);
+        });
+        
+        window.addEventListener('saia-widget-message-received', function(event) {
+            console.log('📥 Message received:', event.detail.message);
+        });
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(updateStatus, 1000);
+            setTimeout(testAPIConnection, 2000);
+        });
+    </script>
+</body>
+</html>

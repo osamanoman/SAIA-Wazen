@@ -1,0 +1,87 @@
+# MANIFEST.in - Include additional files in the Python package
+# This file ensures all necessary Django project files are included when building the package
+
+# Include important project files
+include README.md
+include LICENSE
+include requirements.txt
+include manage.py
+include .env.example
+include docker-compose.yml
+include Dockerfile
+include deploy.sh
+
+# Include all Django templates
+recursive-include */templates *
+recursive-include templates *
+
+# Include all static files
+recursive-include */static *
+recursive-include static *
+recursive-include staticfiles *
+
+# Include all media files (but exclude user uploads)
+recursive-include media *
+prune media/uploads
+
+# Include all locale files
+recursive-include */locale *
+recursive-include locale *
+
+# Include all fixture files
+recursive-include */fixtures *
+recursive-include fixtures *
+
+# Include migration files
+recursive-include */migrations *.py
+
+# Include configuration files
+recursive-include config *
+recursive-include docs *
+recursive-include scripts *
+
+# Include data files
+recursive-include data *
+
+# Exclude development and build files
+exclude .gitignore
+exclude .dockerignore
+exclude *.pyc
+exclude *.pyo
+exclude *.pyd
+exclude __pycache__
+exclude .DS_Store
+exclude Thumbs.db
+exclude .coverage
+exclude .pytest_cache
+exclude .tox
+exclude .venv
+exclude venv
+exclude env
+exclude .env
+exclude .env.local
+exclude .env.production
+
+# Exclude build directories
+prune build
+prune dist
+prune *.egg-info
+prune .git
+prune .github
+prune .vscode
+prune .idea
+
+# Exclude log files
+prune logs
+exclude *.log
+
+# Exclude database files
+exclude *.sqlite3
+exclude *.db
+
+# Include specific important files that might be excluded
+include saia/wsgi.py
+include saia/asgi.py
+include saia/settings.py
+include saia/settings_production.py
+include saia/urls.py

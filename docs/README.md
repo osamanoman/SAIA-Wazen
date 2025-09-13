@@ -7,7 +7,9 @@ Welcome to the SAIA Business Management System documentation. This directory con
 ### 🔌 API Documentation
 **Location:** `docs/api/`
 
+- **SAIA_CHATBOT_API_REFERENCE.md** - **NEW!** Professional API reference following OpenAI standards
 - **API.md** - Complete API reference and endpoints documentation
+- **WAZEN_WIDGET_API_DOCUMENTATION.md** - Widget-specific API documentation
 
 ### 🚀 Deployment & Setup
 **Location:** `docs/deployment/`
@@ -24,6 +26,11 @@ Welcome to the SAIA Business Management System documentation. This directory con
 - **WAZEN_INTEGRATION_COMPLETE.md** - Wazen customer integration details
 - **PERMISSION_FIX_COMPANY_ASSISTANTS.md** - Permission system fixes
 
+### 🔌 Widget Integration
+**Location:** `docs/`
+
+- **SAIA_WIDGET_DEVELOPER_GUIDE.md** - Complete widget integration guide for developers
+
 ### 📖 User Guides
 **Location:** `docs/guides/`
 
@@ -38,6 +45,8 @@ Welcome to the SAIA Business Management System documentation. This directory con
 ## 🎯 Quick Navigation
 
 ### For Developers
+- [Widget Integration Guide](SAIA_WIDGET_DEVELOPER_GUIDE.md) - **NEW!** Complete widget integration for websites
+- [Chatbot API Reference](api/SAIA_CHATBOT_API_REFERENCE.md) - **NEW!** Professional API docs (OpenAI-style)
 - [API Reference](api/API.md) - Complete API documentation
 - [Architecture Overview](architecture/FULL_STACK_REVIEW_COMPLETE.md) - System architecture
 - [Multi-tenant Design](architecture/MULTI_TENANT_AI_PRD.md) - AI assistant architecture
